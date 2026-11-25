@@ -446,8 +446,10 @@ export default function AdminPage() {
               { k: 'social_instagram', l: 'URL Instagram' },
               { k: 'social_discord', l: 'URL Discord' },
               { k: 'social_twitter', l: 'URL Twitter/X' },
-              { k: 'lore_origin', l: 'Lore — Origem' },
-              { k: 'lore_philosophy', l: 'Lore — Filosofia' },
+              { k: 'lore_origin', l: 'Lore — Origem (Roxwood)' },
+              { k: 'lore_philosophy', l: 'Lore — Erasmos & Filosofia' },
+              { k: 'lore_culture', l: 'Lore — Cultura & Trabalho em Equipe' },
+              { k: 'lore_objectives', l: 'Lore — Hoje em Roxwood' },
             ].map((item) => (
               <div key={item.k} className="space-y-1">
                 <label className="text-[10px] uppercase tracking-widest text-white/40">{item.l}</label>

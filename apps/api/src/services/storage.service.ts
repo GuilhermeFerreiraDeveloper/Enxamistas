@@ -2,7 +2,15 @@ import crypto from 'crypto';
 import { env } from '../config/env';
 import { AppError } from '../errors/AppError';
 
-export type UploadScope = 'avatars' | 'feed' | 'events' | 'materials' | 'proofs' | 'gallery' | 'projects';
+export type UploadScope =
+  | 'avatars'
+  | 'feed'
+  | 'events'
+  | 'materials'
+  | 'proofs'
+  | 'gallery'
+  | 'projects'
+  | 'cinematics';
 
 const ALLOWED_MIME_TYPES: Record<UploadScope, string[]> = {
   avatars: ['image/jpeg', 'image/png', 'image/webp'],
@@ -12,6 +20,7 @@ const ALLOWED_MIME_TYPES: Record<UploadScope, string[]> = {
   proofs: ['image/jpeg', 'image/png', 'image/webp'],
   gallery: ['image/jpeg', 'image/png', 'image/webp'],
   projects: ['image/jpeg', 'image/png', 'image/webp'],
+  cinematics: ['video/mp4', 'video/webm', 'video/quicktime'],
 };
 
 const MAX_BYTES: Record<UploadScope, number> = {
@@ -22,6 +31,7 @@ const MAX_BYTES: Record<UploadScope, number> = {
   proofs: 8 * 1024 * 1024,
   gallery: 8 * 1024 * 1024,
   projects: 6 * 1024 * 1024,
+  cinematics: 80 * 1024 * 1024,
 };
 
 function mimeToExt(mime: string): string {
@@ -36,6 +46,12 @@ function mimeToExt(mime: string): string {
       return 'gif';
     case 'application/pdf':
       return 'pdf';
+    case 'video/mp4':
+      return 'mp4';
+    case 'video/webm':
+      return 'webm';
+    case 'video/quicktime':
+      return 'mov';
     default:
       return 'bin';
   }

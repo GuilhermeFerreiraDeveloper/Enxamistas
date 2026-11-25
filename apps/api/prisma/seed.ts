@@ -39,6 +39,7 @@ async function main() {
     { code: 'gallery.manage', name: 'Gerir galeria e solicitações de mansões', module: 'gallery' },
     { code: 'radio.manage', name: 'Gerir faixas e playlists da rádio', module: 'radio' },
     { code: 'highlights.manage', name: 'Definir Enxamista do mês', module: 'highlights' },
+    { code: 'cinematics.manage', name: 'Publicar e gerir vídeos na Cinemática', module: 'cinematics' },
     { code: 'settings.manage', name: 'Alterar configurações institucionais', module: 'admin' },
   ];
 
@@ -238,10 +239,26 @@ async function main() {
     { key: 'social_instagram', value: '' },
     { key: 'social_discord', value: '' },
     { key: 'social_twitter', value: '' },
-    { key: 'lore_origin', value: 'Nascida nas sombras e forjada na união, a organização Enxamistas surgiu como um refúgio para aqueles que buscavam excelência e lealdade absoluta no universo RP.' },
-    { key: 'lore_philosophy', value: 'Acreditamos que o conhecimento é a arma mais poderosa. Através da nossa fundação acadêmica, cultivamos disciplina, mistério e elegância estratégica.' },
-    { key: 'lore_culture', value: 'Cada membro conhece seu papel na colmeia: respeito à hierarquia, aprimoramento técnico contínuo e proteção mútua.' },
-    { key: 'lore_objectives', value: 'Consolidar influência, formar especialistas em múltiplas áreas e manter o mais alto padrão institucional da cidade.' },
+    {
+      key: 'lore_origin',
+      value:
+        'A história começa em uma época em que a cidade de Roxwood estava em pleno crescimento e precisava de uma comunidade que valorizasse a diversidade e a comunicação. Foi então que um grupo de visionários decidiu criar uma fraternidade que se inspirasse nas abelhas, essas criaturas incríveis que trabalham juntas para criar algo incrível.',
+    },
+    {
+      key: 'lore_philosophy',
+      value:
+        'Erasmos, o fundador, era um apaixonado por natureza e comunicação. Ele viu nas abelhas um exemplo de como a união e a cooperação podem levar a grandes conquistas. Assim, os Enxamistas nasceram com o objetivo de ser uma colmeia de ideias, onde cada membro pudesse contribuir com suas habilidades e perspectivas únicas.',
+    },
+    {
+      key: 'lore_culture',
+      value:
+        'A fraternidade cresceu rapidamente, atraindo pessoas de diferentes origens e interesses. Juntos, eles trabalhavam em projetos que beneficiavam a comunidade, sempre com um foco em comunicação eficaz e respeito mútuo. Os Enxamistas se tornaram conhecidos por sua diversidade e capacidade de trabalhar em equipe, assim como as abelhas em uma colmeia.',
+    },
+    {
+      key: 'lore_objectives',
+      value:
+        'Hoje, os Enxamistas continuam a ser uma força vital em Roxwood, promovendo a união e o desenvolvimento da comunidade. Eles são um exemplo de como a diversidade e a comunicação podem levar a grandes conquistas.',
+    },
   ];
 
   for (const s of defaultSettings) {

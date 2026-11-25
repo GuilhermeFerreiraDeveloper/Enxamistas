@@ -25,6 +25,8 @@ import {
   Crown,
   ShieldAlert,
   UserCircle,
+  Film,
+  ScrollText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePathname } from 'next/navigation';
@@ -82,6 +84,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     {
       group: 'Comunidade',
       items: [
+        { name: 'Cinemática', href: '/cinematica', icon: Film },
+        { name: 'História & Regras', href: '/lore', icon: ScrollText },
         { name: 'Membros', href: '/membros', icon: Users },
         { name: 'Meu Perfil', href: '/perfil', icon: UserCircle },
         { name: 'Chat Privado', href: '/chat', icon: MessageSquare },
@@ -121,17 +125,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
           )}
         >
-          <div className="h-20 flex items-center px-6 border-b border-white/5">
+          <div className="h-20 flex items-center px-6 border-b border-royal-gold/15">
             <Link href="/dashboard" className="flex items-center gap-3 group">
-              <img
-                src="/logos/Logo-2.png"
-                alt="Enxamistas"
-                className="w-10 h-10 object-contain shrink-0 transition-transform duration-500 group-hover:scale-110"
-              />
+              <div className="w-10 h-10 hex-badge bg-royal-gold/10 border border-royal-gold/30 flex items-center justify-center p-1.5 shrink-0 transition-transform duration-500 group-hover:scale-110">
+                <img
+                  src="/logos/Logo-2.png"
+                  alt="Enxamistas"
+                  className="w-full h-full object-contain"
+                />
+              </div>
               {!isCollapsed && (
-                <span className="text-xl font-bold tracking-[0.2em] text-white group-hover:text-royal-gold transition-colors">
-                  ENXAMISTAS
-                </span>
+                <div className="flex flex-col">
+                  <span className="text-lg font-bold tracking-[0.2em] text-white group-hover:text-royal-gold transition-colors leading-none">
+                    ENXAMISTAS
+                  </span>
+                  <span className="text-[9px] font-bold uppercase tracking-[0.25em] text-royal-gold/75 mt-1">
+                    Colmeia • Roxwood
+                  </span>
+                </div>
               )}
             </Link>
           </div>

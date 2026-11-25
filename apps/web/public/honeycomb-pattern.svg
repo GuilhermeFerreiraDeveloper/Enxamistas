@@ -1,4 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="56" height="96" viewBox="0 0 56 96">
-  <path d="M28 66L0 50L0 16L28 0L56 16L56 50L28 66L28 96" fill="none" stroke="rgba(196, 154, 72, 0.08)" stroke-width="1"/>
-  <path d="M28 0L28 30L0 46M28 30L56 46" fill="none" stroke="rgba(196, 154, 72, 0.05)" stroke-width="1"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="56" height="98" viewBox="0 0 56 98">
+  <g fill="none" stroke="rgba(212, 168, 67, 0.14)" stroke-width="1">
+    <polygon points="28,2 54,17 54,47 28,62 2,47 2,17" />
+    <polygon points="56,51 82,66 82,96 56,111 30,96 30,66" />
+    <polygon points="0,51 26,66 26,96 0,111 -26,96 -26,66" />
+  </g>
 </svg>

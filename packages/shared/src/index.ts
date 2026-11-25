@@ -247,3 +247,121 @@ export const suspendUserSchema = z.object({
   isSuspended: z.boolean(),
   reason: z.string().max(500).optional(),
 });
+
+// --- CINEMATICS & FRATERNITY RULES ---
+export const cinematicYoutubeSchema = z.object({
+  title: z.string().trim().min(2, 'Informe um título para a cinemática').max(140),
+  description: z.string().trim().max(1500).optional().or(z.literal('')),
+  category: z.string().trim().min(2).max(60).default('Fraternidade'),
+  youtubeUrl: z.string().trim().min(8, 'Informe uma URL válida do YouTube').max(500),
+});
+
+export type CinematicYoutubeInput = z.infer<typeof cinematicYoutubeSchema>;
+
+export function isLeadershipOrStaff(role?: string | null): boolean {
+  if (!role) return false;
+  return (RoleHierarchy[role as UserRole] ?? 0) >= RoleHierarchy[UserRole.ABELHA_PRINCESA];
+}
+
+export const FRATERNITY_RULES: ReadonlyArray<{ number: number; title: string; text: string }> = [
+  {
+    number: 1,
+    title: 'Zero Preconceito e Bullying',
+    text: 'Não será tolerado nenhum tipo de preconceito, discriminação ou bullying entre os membros e não membros da fraternidade.',
+  },
+  {
+    number: 2,
+    title: 'Uniforme no Campus e Eventos',
+    text: 'No campus da Universidade de RUA2, será obrigatório o uso do uniforme da fraternidade, e também durante eventos oficiais e atividades organizadas.',
+  },
+  {
+    number: 3,
+    title: 'Diretrizes da Universidade',
+    text: 'Todos os membros devem respeitar e seguir as diretrizes e regulamentos estabelecidos pela universidade.',
+  },
+  {
+    number: 4,
+    title: 'Serviço Comunitário',
+    text: 'A participação em atividades comunitárias e de serviço é encorajada para todos os membros da fraternidade.',
+  },
+  {
+    number: 5,
+    title: 'Álcool e Substâncias Controladas',
+    text: 'O consumo de álcool e outras substâncias controladas é estritamente proibido nas instalações da fraternidade, a menos que autorizado em eventos específicos.',
+  },
+  {
+    number: 6,
+    title: 'Limpeza e Organização',
+    text: 'Manter as áreas comuns da fraternidade limpas e organizadas é responsabilidade de todos os membros.',
+  },
+  {
+    number: 7,
+    title: 'Privacidade e Espaço Pessoal',
+    text: 'Respeitar a privacidade e o espaço pessoal dos colegas de fraternidade é fundamental.',
+  },
+  {
+    number: 8,
+    title: 'Segurança e Bem-Estar',
+    text: 'Qualquer comportamento que coloque em risco a segurança ou bem-estar dos membros será punido de acordo com as regras estabelecidas.',
+  },
+  {
+    number: 9,
+    title: 'Proibição de Atividades Ilegais',
+    text: 'A participação em atividades ilegais é estritamente proibida e resultará em expulsão imediata da fraternidade.',
+  },
+  {
+    number: 10,
+    title: 'Ambiente Livre de Conteúdo Impróprio',
+    text: 'Não será permitido nenhum tipo de conteúdo adulto ou de cunho preconceituoso nem que seja por "brincadeira" neste Discord e portal.',
+  },
+  {
+    number: 11,
+    title: 'Diversidade e Inclusão',
+    text: 'Respeitar e promover a diversidade e inclusão é um princípio fundamental da fraternidade.',
+  },
+  {
+    number: 12,
+    title: 'Apoio Mútuo e Camaradagem',
+    text: 'Promover um ambiente de apoio mútuo e camaradagem entre os membros é essencial.',
+  },
+  {
+    number: 13,
+    title: 'Linguagem Respeitosa',
+    text: 'O uso de linguagem ofensiva ou inadequada não será tolerado em nenhum contexto.',
+  },
+  {
+    number: 14,
+    title: 'Respeito às Propriedades',
+    text: 'Respeitar os espaços e propriedades dos outros membros da fraternidade é obrigatório.',
+  },
+  {
+    number: 15,
+    title: 'Conduta Ética e Moral',
+    text: 'Manter uma conduta ética e moral em todas as interações é esperado de cada membro.',
+  },
+  {
+    number: 16,
+    title: 'Participação em Reuniões e Eventos',
+    text: 'Participar ativamente das reuniões e eventos da fraternidade é encorajado.',
+  },
+  {
+    number: 17,
+    title: 'Liderança e Responsabilidade',
+    text: 'Demonstrar liderança e responsabilidade em todas as atividades relacionadas à fraternidade é valorizado.',
+  },
+  {
+    number: 18,
+    title: 'Apoio à Liderança da Colmeia',
+    text: 'Respeitar e apoiar as decisões e iniciativas dos líderes da fraternidade é importante para manter a coesão do grupo.',
+  },
+  {
+    number: 19,
+    title: 'Aprendizado e Crescimento',
+    text: 'Promover um ambiente de aprendizado e crescimento pessoal é um objetivo compartilhado por todos os membros.',
+  },
+  {
+    number: 20,
+    title: 'Resolução Pacífica de Conflitos',
+    text: 'Sempre buscar resolver conflitos de forma pacífica e construtiva, priorizando a harmonia e o bem-estar da fraternidade como um todo.',
+  },
+];

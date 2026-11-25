@@ -12,7 +12,8 @@ export function Navbar() {
 
   const navLinks = [
     { name: 'Início', href: '/' },
-    { name: 'História', href: '/lore' },
+    { name: 'História & Regras', href: '/lore' },
+    { name: 'Cinemática', href: '/cinematica' },
     { name: 'Cursos', href: '/catalogo' },
     { name: 'Mansões', href: '/mansoes' },
     { name: 'Projetos', href: '/projetos' },
@@ -20,41 +21,50 @@ export function Navbar() {
   ];
 
   return (
-    <nav className="sticky top-0 w-full z-50 bg-obsidian/85 backdrop-blur-md border-b border-white/5">
+    <nav className="sticky top-0 w-full z-50 bg-obsidian/90 backdrop-blur-md border-b border-royal-gold/15">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           <Link href="/" className="flex items-center gap-3 group">
-            <img
-              src="/logos/Logo-2.png"
-              alt="Enxamistas"
-              className="w-10 h-10 object-contain group-hover:scale-110 transition-transform duration-500"
-            />
-            <span className="text-xl font-bold tracking-[0.3em] text-white">ENXAMISTAS</span>
+            <div className="w-11 h-11 hex-badge bg-royal-gold/10 border border-royal-gold/30 flex items-center justify-center p-1.5 group-hover:scale-110 transition-transform duration-500">
+              <img
+                src="/logos/Logo-2.png"
+                alt="Enxamistas"
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-lg font-bold tracking-[0.3em] text-white group-hover:text-royal-gold transition-colors">
+                ENXAMISTAS
+              </span>
+              <span className="text-[9px] font-bold uppercase tracking-[0.28em] text-royal-gold/75">
+                Fraternidade • Roxwood
+              </span>
+            </div>
           </Link>
 
-          <div className="hidden lg:flex items-center gap-7">
+          <div className="hidden lg:flex items-center gap-6">
             {navLinks.map((link) => (
               <Link
                 key={link.name}
                 href={link.href}
-                className="text-[10px] font-bold uppercase tracking-[0.25em] text-white/60 hover:text-royal-gold transition-colors"
+                className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/65 hover:text-royal-gold transition-colors whitespace-nowrap"
               >
                 {link.name}
               </Link>
             ))}
             {user ? (
-              <Link href="/dashboard" className="btn-primary">
-                Painel
+              <Link href="/dashboard" className="btn-primary whitespace-nowrap">
+                Colmeia
               </Link>
             ) : (
               <div className="flex items-center gap-3">
                 <Link
                   href="/cadastro"
-                  className="text-[10px] font-bold uppercase tracking-[0.2em] text-royal-gold hover:text-white transition-colors px-3 py-2"
+                  className="text-[10px] font-bold uppercase tracking-[0.2em] text-royal-gold hover:text-white transition-colors px-3 py-2 whitespace-nowrap"
                 >
                   Candidatura
                 </Link>
-                <Link href="/login" className="btn-primary">
+                <Link href="/login" className="btn-primary whitespace-nowrap">
                   Acessar
                 </Link>
               </div>
@@ -72,13 +82,13 @@ export function Navbar() {
         </div>
       </div>
 
-      <div className={cn('lg:hidden bg-graphite border-b border-white/10', isOpen ? 'block' : 'hidden')}>
+      <div className={cn('lg:hidden bg-graphite border-b border-royal-gold/15', isOpen ? 'block' : 'hidden')}>
         <div className="px-4 py-4 space-y-2">
           {navLinks.map((link) => (
             <Link
               key={link.name}
               href={link.href}
-              className="block px-3 py-2.5 text-xs font-bold uppercase tracking-[0.2em] text-white/70 hover:text-royal-gold"
+              className="block px-3 py-2.5 text-xs font-bold uppercase tracking-[0.2em] text-white/75 hover:text-royal-gold"
               onClick={() => setIsOpen(false)}
             >
               {link.name}
@@ -91,7 +101,7 @@ export function Navbar() {
                 className="btn-primary w-full text-center"
                 onClick={() => setIsOpen(false)}
               >
-                Ir ao Painel
+                Ir à Colmeia
               </Link>
             ) : (
               <>

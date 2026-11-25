@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
-  Shield,
   GraduationCap,
   Users,
   Calendar,
@@ -12,10 +11,14 @@ import {
   FolderKanban,
   ExternalLink,
   Clock,
+  Film,
+  ScrollText,
 } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
+import { BeeIcon, HoneycombCrest } from '@/components/ui/BeeEmblem';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+import { FRATERNITY_RULES } from '@enxamistas/shared';
 
 const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -75,83 +78,127 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-obsidian text-ivory selection:bg-royal-gold selection:text-obsidian relative overflow-hidden">
-      <div className="absolute inset-0 honeycomb-overlay opacity-20 pointer-events-none" />
+      <div className="absolute inset-0 honeycomb-overlay opacity-70 pointer-events-none" />
+      <div className="absolute inset-x-0 top-0 h-[560px] honeycomb-glow pointer-events-none" />
       <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-royal-gold/5 rounded-full blur-[150px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-royal-gold/5 rounded-full blur-[150px] translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-amber-500/5 rounded-full blur-[150px] translate-y-1/2 -translate-x-1/2 pointer-events-none" />
 
       <Navbar />
 
       {/* Hero Section */}
-      <section className="relative z-10 pt-24 pb-20 px-6 md:px-16 flex flex-col items-center text-center">
-        <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-royal-gold/5 border border-royal-gold/20 mb-10">
-          <Shield size={14} className="text-royal-gold" />
+      <section className="relative z-10 pt-20 pb-20 px-6 md:px-16 flex flex-col items-center text-center">
+        <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-royal-gold/10 border border-royal-gold/30 mb-8 shadow-gold-glow">
+          <BeeIcon className="w-4 h-4 text-royal-gold" />
           <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-royal-gold">
-            Organização de Elite • GTA RP / FiveM
+            Fraternidade Abelha • Roxwood &amp; Universidade de RUA2
           </span>
         </div>
 
-        <h1 className="text-5xl sm:text-6xl md:text-8xl font-bold text-white mb-8 tracking-tighter leading-none">
-          EXCLUSIVIDADE. <br />
-          <span className="text-royal-gold text-glow-gold italic font-serif">CONHECIMENTO.</span>
+        <h1 className="text-5xl sm:text-6xl md:text-8xl font-bold text-white mb-7 tracking-tighter leading-none">
+          DIVERSIDADE. <br />
+          <span className="text-royal-gold text-glow-gold italic font-serif">COMUNICAÇÃO.</span>
         </h1>
 
-        <p className="max-w-2xl text-base md:text-xl text-white/60 font-medium tracking-wide leading-relaxed mb-12">
-          Bem-vindo ao epicentro da sofisticação, estratégia e formação acadêmica. A Enxamistas une
-          hierarquia, cultura institucional e excelência absoluta.
+        <p className="max-w-2xl text-base md:text-xl text-white/65 font-medium tracking-wide leading-relaxed mb-10">
+          Inspirados pelas abelhas e fundados por Erasmos em Roxwood, os Enxamistas são uma colmeia
+          de ideias onde diversidade, cooperação e respeito mútuo constroem grandes conquistas.
         </p>
 
-        <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
-          <Link href="/cadastro" className="btn-primary flex items-center justify-center gap-3 px-10 py-4 text-sm">
-            INICIAR CANDIDATURA
+        <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-4 sm:gap-5">
+          <Link href="/cadastro" className="btn-primary flex items-center justify-center gap-3 px-9 py-4 text-sm">
+            ENTRAR NA COLMEIA
             <ArrowRight size={18} />
           </Link>
           <Link
             href="/lore"
-            className="px-10 py-4 text-sm font-bold uppercase tracking-[0.2em] border border-white/15 hover:border-royal-gold/40 hover:bg-white/5 transition-all rounded-sm flex items-center justify-center gap-3"
+            className="px-9 py-4 text-sm font-bold uppercase tracking-[0.2em] border border-royal-gold/30 hover:border-royal-gold hover:bg-royal-gold/10 transition-all rounded-sm flex items-center justify-center gap-3"
           >
-            CONHECER O LEGADO
+            HISTÓRIA &amp; 20 REGRAS
+          </Link>
+          <Link
+            href="/cinematica"
+            className="px-8 py-4 text-sm font-bold uppercase tracking-[0.2em] border border-white/15 hover:border-royal-gold/50 hover:bg-white/5 transition-all rounded-sm flex items-center justify-center gap-3 text-honey"
+          >
+            <Film size={17} className="text-royal-gold" />
+            CINEMÁTICA
           </Link>
         </div>
       </section>
 
       {/* Pillars */}
-      <section className="relative z-10 py-20 px-6 md:px-16 border-t border-white/5 bg-black/20">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
+      <section className="relative z-10 py-20 px-6 md:px-16 border-t border-royal-gold/10 bg-black/25">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
             {
+              title: 'FRATERNIDADE',
+              desc: 'Nascida em Roxwood com foco em diversidade, comunicação eficaz, respeito mútuo e trabalho em equipe.',
+              icon: BeeIcon,
+              href: '/lore',
+            },
+            {
               title: 'ACADEMIA',
-              desc: '18 disciplinas oficiais com professores dedicados, registro de presença, medalhas e evolução hierárquica.',
+              desc: '18 disciplinas oficiais com professores dedicados, registro de presença, medalhas e evolução na colmeia.',
               icon: GraduationCap,
               href: '/catalogo',
             },
             {
-              title: 'SOCIEDADE',
-              desc: 'Uma rede privada baseada na lealdade absoluta, hierarquia real da colmeia e eventos exclusivos.',
-              icon: Shield,
-              href: '/lore',
+              title: 'CINEMÁTICA',
+              desc: 'Acervo audiovisual da fraternidade com produções, memórias e registros publicados pela liderança.',
+              icon: Film,
+              href: '/cinematica',
             },
             {
               title: 'PATRIMÔNIO',
-              desc: 'Mansões institucionais, projetos de membros, arquivo de memórias e comunidade integrada.',
+              desc: 'Mansões da colmeia, projetos comunitários, livro de visitas e espaços compartilhados com harmonia.',
               icon: Users,
               href: '/mansoes',
             },
           ].map((pillar) => (
-            <Link
-              key={pillar.title}
-              href={pillar.href}
-              className="group p-8 rounded-sm bg-graphite border border-white/5 hover:border-royal-gold/30 transition-all duration-500 shadow-premium block"
-            >
-              <pillar.icon
-                size={32}
-                className="text-royal-gold mb-6 transition-transform duration-500 group-hover:-translate-y-1"
-              />
-              <h3 className="text-xl font-bold text-white mb-3 tracking-[0.2em] uppercase group-hover:text-royal-gold transition-colors">
+            <Link key={pillar.title} href={pillar.href} className="group card-honeycomb block">
+              <HoneycombCrest className="w-12 h-12 mb-5 transition-transform duration-500 group-hover:-translate-y-1">
+                <pillar.icon className="w-6 h-6" />
+              </HoneycombCrest>
+              <h3 className="text-lg font-bold text-white mb-2.5 tracking-[0.2em] uppercase group-hover:text-royal-gold transition-colors">
                 {pillar.title}
               </h3>
-              <p className="text-white/50 text-sm leading-relaxed">{pillar.desc}</p>
+              <p className="text-white/55 text-sm leading-relaxed">{pillar.desc}</p>
             </Link>
           ))}
+        </div>
+      </section>
+
+      {/* Fraternity Rules Teaser */}
+      <section className="relative z-10 py-16 px-6 md:px-16 border-t border-royal-gold/10">
+        <div className="max-w-7xl mx-auto bg-graphite/90 border border-royal-gold/25 rounded-sm p-8 md:p-10 shadow-premium">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-royal-gold mb-2 flex items-center gap-2">
+                <ScrollText size={13} /> Código de Convivência • Universidade de RUA2
+              </p>
+              <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+                Regras da Fraternidade Enxamistas
+              </h2>
+            </div>
+            <Link
+              href="/lore#regras"
+              className="btn-primary inline-flex items-center gap-2 self-start md:self-auto"
+            >
+              Ver Todas as {FRATERNITY_RULES.length} Regras <ArrowRight size={14} />
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {FRATERNITY_RULES.slice(0, 3).map((rule) => (
+              <div key={rule.number} className="p-5 bg-obsidian/70 border border-white/5 rounded-sm">
+                <div className="flex items-center gap-3 mb-2.5">
+                  <HoneycombCrest className="w-8 h-8 text-xs font-bold">
+                    {String(rule.number).padStart(2, '0')}
+                  </HoneycombCrest>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-honey">{rule.title}</h3>
+                </div>
+                <p className="text-xs text-white/60 leading-relaxed">{rule.text}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -161,7 +208,7 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-royal-gold mb-2">
-                Fundação Acadêmica
+                Colmeia Acadêmica
               </p>
               <h2 className="text-3xl font-bold text-white tracking-tight">Catálogo de Disciplinas</h2>
             </div>
@@ -184,11 +231,11 @@ export default function Home() {
               {data.courses.slice(0, 6).map((course) => (
                 <div
                   key={course.id}
-                  className="bg-graphite border border-white/5 p-6 rounded-sm hover:border-royal-gold/30 transition-all"
+                  className="bg-graphite border border-royal-gold/15 p-6 rounded-sm hover:border-royal-gold/40 transition-all"
                 >
                   <h3 className="text-lg font-bold text-white mb-2">{course.name}</h3>
                   <p className="text-xs text-royal-gold mb-3">
-                    Docente: {course.teacher?.name || 'Alta Cúpula'}
+                    Docente: {course.teacher?.name || 'Liderança da Colmeia'}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {course.schedules.map((s, idx) => (
@@ -233,7 +280,7 @@ export default function Home() {
             {data?.publicEvents?.length ? (
               <div className="space-y-4">
                 {data.publicEvents.map((ev) => (
-                  <div key={ev.id} className="bg-graphite border border-white/5 p-5 rounded-sm">
+                  <div key={ev.id} className="bg-graphite border border-royal-gold/15 p-5 rounded-sm">
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <span className="text-[10px] font-bold uppercase tracking-widest text-royal-gold">
                         {ev.category}
@@ -268,14 +315,28 @@ export default function Home() {
               {(data?.mansions?.length
                 ? data.mansions
                 : [
-                    { id: '1', slug: 'mansao-real', name: 'Mansão Real', location: 'Vinewood Hills', typeLabel: 'SEDE PRINCIPAL', description: 'Sede principal de operações e cerimônias da alta cúpula.' },
-                    { id: '2', slug: 'refugio-da-montanha', name: 'Refúgio da Montanha', location: 'Mount Chiliad Base', typeLabel: 'TREINAMENTO', description: 'Centro tático reservado para treinamentos estratégicos.' },
+                    {
+                      id: '1',
+                      slug: 'mansao-real',
+                      name: 'Mansão Real',
+                      location: 'Roxwood',
+                      typeLabel: 'SEDE PRINCIPAL',
+                      description: 'Casa-mãe da fraternidade para reuniões, estudos e convivência da colmeia.',
+                    },
+                    {
+                      id: '2',
+                      slug: 'refugio-da-montanha',
+                      name: 'Refúgio da Montanha',
+                      location: 'Arredores de Roxwood',
+                      typeLabel: 'RETIRO & PROJETOS',
+                      description: 'Espaço dedicado a oficinas, integração e atividades comunitárias.',
+                    },
                   ]
               ).map((m) => (
                 <Link
                   key={m.id}
                   href={m.slug ? `/mansoes/${m.slug}` : '/mansoes'}
-                  className="block bg-graphite border border-white/5 hover:border-royal-gold/30 p-5 rounded-sm transition-all"
+                  className="block bg-graphite border border-royal-gold/15 hover:border-royal-gold/40 p-5 rounded-sm transition-all"
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-royal-gold">
@@ -310,7 +371,7 @@ export default function Home() {
                 <Link
                   key={p.id}
                   href={`/projetos/${p.id}`}
-                  className="bg-graphite border border-white/5 hover:border-royal-gold/30 p-5 rounded-sm transition-all"
+                  className="bg-graphite border border-royal-gold/15 hover:border-royal-gold/40 p-5 rounded-sm transition-all"
                 >
                   <span className="text-[10px] font-bold uppercase tracking-widest text-royal-gold">
                     {p.category}
@@ -326,9 +387,11 @@ export default function Home() {
       ) : null}
 
       {/* Footer */}
-      <footer className="relative z-10 py-14 px-6 md:px-16 border-t border-white/5 text-center">
+      <footer className="relative z-10 py-14 px-6 md:px-16 border-t border-royal-gold/15 text-center">
         <div className="flex flex-col items-center gap-6">
-          <img src="/logos/Logo-2.png" alt="Enxamistas" className="w-14 h-14 object-contain opacity-60" />
+          <div className="w-16 h-16 hex-badge bg-royal-gold/10 border border-royal-gold/30 flex items-center justify-center p-2">
+            <img src="/logos/Logo-2.png" alt="Enxamistas" className="w-full h-full object-contain" />
+          </div>
 
           {socialLinks.length > 0 ? (
             <div className="flex flex-wrap justify-center gap-8">
@@ -351,8 +414,8 @@ export default function Home() {
             </p>
           )}
 
-          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/25">
-            © 2026 ENXAMISTAS ORGANIZAÇÃO • TODOS OS DIREITOS RESERVADOS
+          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/30">
+            © 2026 FRATERNIDADE ENXAMISTAS • ROXWOOD • COLMEIA DE IDEIAS
           </p>
         </div>
       </footer>

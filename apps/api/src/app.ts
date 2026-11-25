@@ -17,6 +17,7 @@ import notificationRoutes from './routes/notification.routes';
 import institutionalRoutes from './routes/institutional.routes';
 import adminRoutes from './routes/admin.routes';
 import uploadRoutes from './routes/upload.routes';
+import cinematicRoutes from './routes/cinematic.routes';
 
 const app = express();
 
@@ -47,6 +48,7 @@ function buildApiRouter() {
   api.use('/chat', chatRoutes);
   api.use('/notifications', notificationRoutes);
   api.use('/admin', adminRoutes);
+  api.use('/cinematics', cinematicRoutes);
   api.use('/', institutionalRoutes);
   return api;
 }

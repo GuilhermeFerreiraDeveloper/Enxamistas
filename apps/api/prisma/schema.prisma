@@ -116,6 +116,7 @@ model Profile {
   conversationMembers    ConversationMember[]
   mansionKeyRequests     MansionKeyRequest[]
   monthlyHighlights      MonthlyHighlight[]
+  cinematics             Cinematic[]
 }
 
 model CourseCategory {
@@ -633,4 +634,22 @@ model Setting {
   id    String @id @default(uuid())
   key   String @unique
   value String
+}
+
+model Cinematic {
+  id           String   @id @default(uuid())
+  title        String
+  description  String?
+  category     String   @default("Fraternidade")
+  sourceType   String   @default("YOUTUBE") // YOUTUBE, UPLOAD
+  videoUrl     String
+  youtubeId    String?
+  thumbnailUrl String?
+  mimeType     String?
+  fileSize     Int?
+  fileData     Bytes?
+  authorId     String
+  author       Profile  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

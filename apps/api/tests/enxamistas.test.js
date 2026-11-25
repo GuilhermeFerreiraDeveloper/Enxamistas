@@ -10,6 +10,7 @@ const { AcademicService } = require('../dist/services/academic.service.js');
 const { EventService } = require('../dist/services/event.service.js');
 const { ChatService } = require('../dist/services/chat.service.js');
 const { StorageService } = require('../dist/services/storage.service.js');
+const { CinematicService, extractYoutubeId } = require('../dist/services/cinematic.service.js');
 const { roleMiddleware } = require('../dist/middlewares/role.middleware.js');
 
 describe('Enxamistas Critical Suite', () => {
@@ -221,6 +222,40 @@ describe('Enxamistas Critical Suite', () => {
           ownerId: 'p1',
         }),
       /Armazenamento externo S3 não configurado/
+    );
+  });
+
+  it('CinematicService validates YouTube links, video signatures, and 20 fraternity rules', async () => {
+    const cinematicService = new CinematicService();
+
+    assert.equal(shared.FRATERNITY_RULES.length, 20);
+    assert.equal(shared.isLeadershipOrStaff(shared.UserRole.STAFF_ZANGAO), true);
+    assert.equal(shared.isLeadershipOrStaff(shared.UserRole.ABELHA_PRINCESA), true);
+    assert.equal(shared.isLeadershipOrStaff(shared.UserRole.ABELHA_OPERARIA), false);
+
+    assert.equal(extractYoutubeId('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), 'dQw4w9WgXcQ');
+    assert.equal(extractYoutubeId('https://youtu.be/dQw4w9WgXcQ'), 'dQw4w9WgXcQ');
+    assert.equal(extractYoutubeId('https://example.com/video.mp4'), null);
+
+    await assert.rejects(
+      () =>
+        cinematicService.createYoutubeCinematic('prof-1', 'user-1', {
+          title: 'Teste YouTube',
+          youtubeUrl: 'https://vimeo.com/123456',
+        }),
+      /URL do YouTube inválida/
+    );
+
+    await assert.rejects(
+      () =>
+        cinematicService.createUploadedCinematic({
+          authorProfileId: 'prof-1',
+          actorUserId: 'user-1',
+          title: 'Arquivo Falso',
+          mimeType: 'video/mp4',
+          buffer: Buffer.from('not-an-mp4-video-header'),
+        }),
+      /MP4\/MOV válido/
     );
   });
 });
