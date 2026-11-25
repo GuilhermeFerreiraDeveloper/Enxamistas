@@ -7,7 +7,7 @@ const notificationService = new NotificationService();
 
 export class MedalService {
   async listAllCatalog() {
-    const [medals, achievements] = await Promise.all([
+    const [medals, achievements] = await prisma.$transaction([
       prisma.courseMedal.findMany({
         include: {
           course: { select: { id: true, name: true } },

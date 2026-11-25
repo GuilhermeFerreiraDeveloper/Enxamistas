@@ -20,32 +20,33 @@ const medalService = new MedalService();
 export class InstitutionalService {
   // --- PUBLIC PORTAL / SETTINGS ---
   async getPublicPortalData() {
-    const [settingsRows, courses, publicEvents, mansions, featuredProjects] = await Promise.all([
-      prisma.setting.findMany(),
-      prisma.course.findMany({
-        take: 6,
-        include: { teacher: true, schedules: true },
-        orderBy: { name: 'asc' },
-      }),
-      prisma.event.findMany({
-        where: { visibility: 'PUBLIC', status: 'SCHEDULED' },
-        orderBy: { date: 'asc' },
-        take: 4,
-      }),
-      prisma.album.findMany({
-        where: { isMansion: true },
-        include: { _count: { select: { media: true } } },
-        orderBy: { createdAt: 'asc' },
-      }),
-      prisma.project.findMany({
-        where: { status: 'ACTIVE' },
-        include: {
-          author: { select: { id: true, name: true, avatar: true } },
-        },
-        orderBy: [{ isFeatured: 'desc' }, { createdAt: 'desc' }],
-        take: 4,
-      }),
-    ]);
+    const [settingsRows, courses, publicEvents, mansions, featuredProjects] =
+      await prisma.$transaction([
+        prisma.setting.findMany(),
+        prisma.course.findMany({
+          take: 6,
+          include: { teacher: true, schedules: true },
+          orderBy: { name: 'asc' },
+        }),
+        prisma.event.findMany({
+          where: { visibility: 'PUBLIC', status: 'SCHEDULED' },
+          orderBy: { date: 'asc' },
+          take: 4,
+        }),
+        prisma.album.findMany({
+          where: { isMansion: true },
+          include: { _count: { select: { media: true } } },
+          orderBy: { createdAt: 'asc' },
+        }),
+        prisma.project.findMany({
+          where: { status: 'ACTIVE' },
+          include: {
+            author: { select: { id: true, name: true, avatar: true } },
+          },
+          orderBy: [{ isFeatured: 'desc' }, { createdAt: 'desc' }],
+          take: 4,
+        }),
+      ]);
 
     const settings: Record<string, string> = {};
     for (const s of settingsRows) settings[s.key] = s.value;
@@ -476,7 +477,7 @@ export class InstitutionalService {
 
   // --- RADIO ---
   async getRadioData() {
-    const [tracks, playlists] = await Promise.all([
+    const [tracks, playlists] = await prisma.$transaction([
       prisma.radioTrack.findMany({ orderBy: { createdAt: 'desc' } }),
       prisma.radioPlaylist.findMany({
         include: {

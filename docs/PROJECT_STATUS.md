@@ -7,11 +7,11 @@
 ---
 
 ## 📊 Etapa Atual
-- **Fase atual:** **Fases 1 a 8 (Implementação Completa em Código + Testes Críticos + Build Validado).**
+- **Fase atual:** **Banco Neon conectado, migration aplicada, seed executado, conta Staff criada e servidores rodando em localhost.**
 - **Bloqueios / Dependências Externas:**
-  1. **PostgreSQL / Neon (`.env`):** O arquivo `.env` ainda contém os placeholders de `.env.example` e não há banco PostgreSQL local ativo na porta `5432`. Por isso, `prisma migrate dev`, `prisma db seed` e testes ponta-a-ponta com persistência real em banco dependem da configuração de `DATABASE_URL` e `DIRECT_URL`.
-  2. **Storage S3 (`STORAGE_*`):** As credenciais de bucket compatível com S3 estão vazias no `.env`. O `StorageService` valida arquivos/assinaturas e reporta explicitamente `503 STORAGE_NOT_CONFIGURED` quando não configurado (sem simular upload em disco).
-  3. **Deploy em Produção:** Não executado nesta etapa (pendente repositório Git remoto e contas Vercel/Render/Neon).
+  1. **Neon CLI (`neon deploy`):** A CLI está instalada e o projeto `noisy-waterfall-86664123` (`branch: production`) está linkado em `.neon` / `neon.ts`, porém `neon deploy` exige autenticação prévia via `neon login` em terminal interativo. O banco Neon foi conectado diretamente pela string fornecida e validado ponta a ponta.
+  2. **Storage S3 (`STORAGE_*`):** As credenciais de bucket compatível com S3 estão vazias no `.env`. O `StorageService` valida arquivos/assinaturas e reporta explicitamente `503 STORAGE_NOT_CONFIGURED` quando não configurado.
+  3. **Deploy Online (Vercel + Render):** Falta inicializar repositório Git, publicar o backend (`apps/api`) no Render Free e o frontend (`apps/web`) no Vercel Hobby (detalhes no `README.md`).
 
 ---
 
@@ -33,8 +33,10 @@
 - **`npm run build --workspace=@enxamistas/api`** → **Aprovado (código 0)** (`dist/index.js` e `dist/app.js` gerados).
 - **`npm run build --workspace=@enxamistas/web`** → **Aprovado (código 0)** (27 rotas compiladas, zero erros TypeScript/Next).
 - **`npx prisma validate` e `npx prisma generate`** → **Aprovado (código 0)** (Prisma Client v5.22.0 gerado com todos os novos modelos).
-- **`npm test` (`apps/api/tests/enxamistas.test.js` com `node --test`)** → **8/8 testes aprovados (`pass 8, fail 0, skipped 0`)** usando doubles em memória do Prisma para validar regras de negócio, Zod, Argon2, RBAC, privacidade de comprovantes, limites/duplicidade de RSVP, proteção IDOR no Chat e validação/S3 do `StorageService`.
-- **Testes pendentes:** Testes de integração ponta-a-ponta contra PostgreSQL/Neon real após configurar `.env` (`prisma migrate dev` + `prisma db seed`).
+- **`npm test` (`apps/api/tests/enxamistas.test.js` com `node --test`)** → **8/8 testes aprovados (`pass 8, fail 0, skipped 0`)**.
+- **`npx prisma migrate dev --name init` + `npm run prisma:seed`** → **Aplicados no Neon (`neondb`) com sucesso** (`20261125030256_init`, 18 cursos, 20 horários, 8 cargos/13 permissões, 2 mansões, 4 conquistas, settings).
+- **Conta Staff (`STAFF_ZANGAO`)** → Criada no Neon via `apps/api/prisma/create-staff.ts` (`passport: "1"`).
+- **Verificação ponta a ponta (`localhost` + Neon)** → **Aprovada (`E2E_VERIFICATION_PASSED`)**: `/health` (`database: "connected"`), `/api/courses` (18), `/api/gallery/mansions` (2), `/api/institutional/public` (`200`), login Staff + `/api/auth/me` + `/api/admin/metrics` + `/api/profiles/me`, `/api/feed`, `/api/events`, `/api/announcements`, `/api/notifications`, `/api/radio` (`200`) e 9 rotas do Next.js (`200`).
 
 ---
 

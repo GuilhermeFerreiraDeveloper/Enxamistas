@@ -43,7 +43,7 @@ export class NotificationService {
   }
 
   async getNotifications(profileId: string) {
-    const [items, unreadCount] = await Promise.all([
+    const [items, unreadCount] = await prisma.$transaction([
       prisma.notification.findMany({
         where: { profileId },
         orderBy: { createdAt: 'desc' },

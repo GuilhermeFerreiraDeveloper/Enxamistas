@@ -1,7 +1,20 @@
 node_modules
 dist
 .next
-.env
-*.log
 build
 .DS_Store
+*.log
+*.tsbuildinfo
+
+# Environment & local secrets
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
+!.env.example
+!**/.env.example
+
+# Neon local project link
+.neon

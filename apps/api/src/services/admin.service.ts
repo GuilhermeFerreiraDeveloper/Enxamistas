@@ -25,11 +25,11 @@ export class AdminService {
       pendingReports,
       pendingKeyRequests,
       recentAuditLogs,
-    ] = await Promise.all([
+    ] = await prisma.$transaction([
       prisma.user.count(),
       prisma.user.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
       prisma.user.count({ where: { isSuspended: true } }),
-      prisma.user.groupBy({ by: ['role'], _count: { role: true } }),
+      prisma.user.groupBy({ by: ['role'], orderBy: { role: 'asc' }, _count: { role: true } }),
       prisma.course.findMany({
         select: { id: true, name: true, _count: { select: { profiles: true, enrollments: true } } },
         orderBy: { name: 'asc' },
@@ -68,7 +68,10 @@ export class AdminService {
         pendingReports,
         pendingKeyRequests,
       },
-      roleDistribution: roleDistribution.map((r) => ({ role: r.role, count: r._count.role })),
+      roleDistribution: roleDistribution.map((r: any) => ({
+        role: r.role,
+        count: typeof r._count === 'object' ? r._count?.role ?? 0 : 0,
+      })),
       courseDistribution: courses.map((c) => ({
         id: c.id,
         name: c.name,
@@ -244,7 +247,7 @@ export class AdminService {
 
   // --- EXTENSIBLE RBAC ---
   async getRolesAndPermissions() {
-    const [roles, permissions] = await Promise.all([
+    const [roles, permissions] = await prisma.$transaction([
       prisma.role.findMany({
         include: {
           rolePermissions: { include: { permission: true } },
@@ -383,7 +386,7 @@ export class AdminService {
 
   async getAuditLogs(page = 1, limit = 30) {
     const skip = (Math.max(1, page) - 1) * limit;
-    const [items, total] = await Promise.all([
+    const [items, total] = await prisma.$transaction([
       prisma.auditLog.findMany({
         skip,
         take: limit,

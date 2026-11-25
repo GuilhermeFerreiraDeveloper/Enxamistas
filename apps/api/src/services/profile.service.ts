@@ -172,7 +172,7 @@ export class ProfileService {
       };
     }
 
-    const [items, total] = await Promise.all([
+    const [items, total] = await prisma.$transaction([
       prisma.profile.findMany({
         where,
         skip,

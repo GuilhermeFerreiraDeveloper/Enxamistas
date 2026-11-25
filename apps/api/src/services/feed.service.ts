@@ -46,7 +46,7 @@ export class FeedService {
     const limitNum = Math.min(30, Math.max(1, limit));
     const skip = (pageNum - 1) * limitNum;
 
-    const [posts, total] = await Promise.all([
+    const [posts, total] = await prisma.$transaction([
       prisma.post.findMany({
         skip,
         take: limitNum,
