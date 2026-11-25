@@ -16,7 +16,7 @@
   ],
   "devDependencies": {
     "rimraf": "^5.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "5.9.3"
   },
   "dependencies": {
     "@neon/config": "^1.14.7",
