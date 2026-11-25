@@ -8,9 +8,7 @@
     "dev": "tsc -w"
   },
   "dependencies": {
+    "typescript": "5.9.3",
     "zod": "^3.22.0"
-  },
-  "devDependencies": {
-    "typescript": "5.9.3"
   }
 }
