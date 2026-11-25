@@ -1,0 +1,636 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  STAFF_ZANGAO
+  ABELHA_RAINHA
+  ABELHA_PRINCESA
+  ABELHA_PATRONO
+  ABELHA_CONSELHEIRA_REAL
+  ABELHA_OPERARIA
+  KAKUNA
+  CONVIDADO
+}
+
+model User {
+  id              String               @id @default(uuid())
+  passport        String               @unique
+  password        String
+  role            UserRole             @default(CONVIDADO)
+  isSuspended     Boolean              @default(false)
+  suspendedAt     DateTime?
+  suspendedReason String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  profile         Profile?
+  auditLogs       AuditLog[]
+  userRoles       UserRoleAssignment[]
+}
+
+model Role {
+  id              String               @id @default(uuid())
+  code            String               @unique
+  name            String
+  description     String?
+  level           Int                  @default(10)
+  isSystem        Boolean              @default(false)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  rolePermissions RolePermission[]
+  userRoles       UserRoleAssignment[]
+}
+
+model Permission {
+  id              String           @id @default(uuid())
+  code            String           @unique
+  name            String
+  module          String
+  description     String?
+  rolePermissions RolePermission[]
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model UserRoleAssignment {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId       String
+  role         Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  assignedById String?
+  assignedAt   DateTime @default(now())
+
+  @@unique([userId, roleId])
+}
+
+model Profile {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  avatar        String?
+  bio           String?
+  description   String?
+  favoriteMusic String?
+  musicGenre    String?
+  interests     String?
+  projects      String? // Legacy projects string
+  joinDate      DateTime @default(now())
+
+  // Relations
+  mainCourseId String?
+  mainCourse   Course? @relation("MainCourse", fields: [mainCourseId], references: [id])
+
+  enrollments            CourseEnrollment[]
+  courseCompletions      CourseCompletion[]
+  medals                 UserMedal[]
+  achievements           UserAchievement[]
+  projectsList           Project[]
+  posts                  Post[]
+  comments               Comment[]
+  likes                  Like[]
+  commentLikes           CommentLike[]
+  eventAttendees         EventAttendee[]
+  announcements          Announcement[]
+  notifications          Notification[]
+  notificationPreference NotificationPreference?
+  sentMessages           Message[]               @relation("SentMessages")
+  readMessages           MessageRead[]
+  reports                Report[]
+  lessonProofs           LessonProof[]
+  conversationMembers    ConversationMember[]
+  mansionKeyRequests     MansionKeyRequest[]
+  monthlyHighlights      MonthlyHighlight[]
+}
+
+model CourseCategory {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  courses     Course[]
+}
+
+model Course {
+  id                 String          @id @default(uuid())
+  name               String
+  description        String?
+  category           String?
+  categoryId         String?
+  categoryRel        CourseCategory? @relation(fields: [categoryId], references: [id])
+  completionCriteria String?
+  requiredAttendance Int             @default(1)
+  teacherId          String?
+  teacher            Teacher?        @relation(fields: [teacherId], references: [id])
+  schedules          ClassSchedule[]
+
+  // Relations
+  profiles      Profile[]          @relation("MainCourse")
+  enrollments   CourseEnrollment[]
+  completions   CourseCompletion[]
+  sessions      ClassSession[]
+  materials     StudyMaterial[]
+  announcements Announcement[]
+  medal         CourseMedal?
+}
+
+model Teacher {
+  id      String   @id @default(uuid())
+  name    String
+  bio     String?
+  courses Course[]
+}
+
+model ClassSchedule {
+  id        String @id @default(uuid())
+  courseId  String
+  course    Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  dayOfWeek Int    // 0-6 (Sunday-Saturday)
+  startTime String // "HH:MM"
+}
+
+// FEED MODULE
+model Post {
+  id        String      @id @default(uuid())
+  content   String
+  authorId  String
+  author    Profile     @relation(fields: [authorId], references: [id])
+  media     PostMedia[]
+  comments  Comment[]
+  likes     Like[]
+  reports   Report[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+model PostMedia {
+  id     String @id @default(uuid())
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  url    String
+  type   String // "IMAGE", "VIDEO"
+}
+
+model Comment {
+  id        String        @id @default(uuid())
+  content   String
+  postId    String
+  post      Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    Profile       @relation(fields: [authorId], references: [id])
+  parentId  String?
+  parent    Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[]     @relation("CommentReplies")
+  likes     CommentLike[]
+  reports   Report[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    Profile  @relation(fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([postId, authorId])
+}
+
+model CommentLike {
+  id        String   @id @default(uuid())
+  commentId String
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    Profile  @relation(fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([commentId, authorId])
+}
+
+model Report {
+  id             String   @id @default(uuid())
+  reporterId     String
+  reporter       Profile  @relation(fields: [reporterId], references: [id])
+  contentType    String   @default("POST") // POST, COMMENT, USER, GUESTBOOK, PROJECT
+  postId         String?
+  post           Post?    @relation(fields: [postId], references: [id], onDelete: SetNull)
+  commentId      String?
+  comment        Comment? @relation(fields: [commentId], references: [id], onDelete: SetNull)
+  targetUserId   String?
+  reason         String
+  description    String?
+  status         String   @default("PENDING") // PENDING, ANALYZING, RESOLVED, REJECTED
+  analystId      String?
+  resolutionNote String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// EVENTS & INSTITUTIONAL CALENDAR MODULE
+model Event {
+  id          String          @id @default(uuid())
+  title       String
+  description String
+  date        DateTime
+  endDate     DateTime?
+  location    String
+  category    String
+  coverImage  String?
+  attractions String?
+  extraInfo   String?
+  visibility  String          @default("PRIVATE") // PUBLIC, PRIVATE
+  limit       Int?
+  status      String          @default("SCHEDULED") // SCHEDULED, CANCELLED, COMPLETED
+  creatorId   String
+  attendees   EventAttendee[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model EventAttendee {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id])
+  status    String   @default("CONFIRMED") // CONFIRMED, CANCELLED
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, profileId])
+}
+
+model InstitutionalCommitment {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  type        String    @default("MEETING") // MEETING, IMPORTANT_DATE, COMMITMENT, ACTIVITY
+  startAt     DateTime
+  endAt       DateTime?
+  location    String?
+  visibility  String    @default("PRIVATE") // PUBLIC, PRIVATE
+  creatorId   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// ACADEMIC MODULE
+model CourseEnrollment {
+  id        String   @id @default(uuid())
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id])
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id])
+  type      String   @default("SECONDARY") // MAIN, SECONDARY
+  status    String   @default("ACTIVE") // ACTIVE, COMPLETED, DROPPED
+  createdAt DateTime @default(now())
+
+  @@unique([courseId, profileId])
+}
+
+model ClassSession {
+  id          String        @id @default(uuid())
+  courseId    String
+  course      Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  date        DateTime
+  startTime   String?
+  status      String        @default("SCHEDULED") // SCHEDULED, COMPLETED, CANCELLED
+  teacherNote String?
+  proofs      LessonProof[]
+  createdAt   DateTime      @default(now())
+}
+
+model StudyMaterial {
+  id        String   @id @default(uuid())
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title     String
+  url       String
+  type      String // "PDF", "LINK", "IMAGE"
+  createdAt DateTime @default(now())
+}
+
+model LessonProof {
+  id           String       @id @default(uuid())
+  sessionId    String
+  session      ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  profileId    String
+  profile      Profile      @relation(fields: [profileId], references: [id])
+  imageUrl     String
+  observation  String?
+  status       String       @default("PENDING") // PENDING, VALIDATED, REJECTED
+  feedback     String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@unique([sessionId, profileId])
+}
+
+model CourseCompletion {
+  id            String    @id @default(uuid())
+  courseId      String
+  course        Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  profileId     String
+  profile       Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  status        String    @default("APPROVED") // PENDING, APPROVED, REJECTED
+  validatedById String?
+  notes         String?
+  completedAt   DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+
+  @@unique([courseId, profileId])
+}
+
+model CourseMedal {
+  id          String      @id @default(uuid())
+  courseId    String      @unique
+  course      Course      @relation(fields: [courseId], references: [id])
+  name        String
+  description String
+  icon        String
+  criteria    String?
+  userMedals  UserMedal[]
+  createdAt   DateTime    @default(now())
+}
+
+model UserMedal {
+  id          String      @id @default(uuid())
+  medalId     String
+  medal       CourseMedal @relation(fields: [medalId], references: [id])
+  profileId   String
+  profile     Profile     @relation(fields: [profileId], references: [id])
+  emittedById String?
+  reason      String?
+  createdAt   DateTime    @default(now())
+
+  @@unique([medalId, profileId])
+}
+
+model Achievement {
+  id          String            @id @default(uuid())
+  name        String            @unique
+  description String
+  icon        String
+  category    String
+  type        String // AUTO, MANUAL
+  criteria    String?
+  users       UserAchievement[]
+  createdAt   DateTime          @default(now())
+}
+
+model UserAchievement {
+  id            String      @id @default(uuid())
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id])
+  profileId     String
+  profile       Profile     @relation(fields: [profileId], references: [id])
+  emittedById   String?
+  reason        String?
+  createdAt     DateTime    @default(now())
+
+  @@unique([achievementId, profileId])
+}
+
+// CHAT MODULE
+model Conversation {
+  id        String               @id @default(uuid())
+  isGroup   Boolean              @default(false)
+  name      String?
+  members   ConversationMember[]
+  messages  Message[]
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+}
+
+model ConversationMember {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  profileId      String
+  profile        Profile      @relation(fields: [profileId], references: [id])
+  joinedAt       DateTime     @default(now())
+
+  @@unique([conversationId, profileId])
+}
+
+model Message {
+  id             String              @id @default(uuid())
+  conversationId String
+  conversation   Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         Profile             @relation("SentMessages", fields: [senderId], references: [id])
+  content        String
+  attachments    MessageAttachment[]
+  reads          MessageRead[]
+  createdAt      DateTime            @default(now())
+}
+
+model MessageRead {
+  id        String   @id @default(uuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id])
+  readAt    DateTime @default(now())
+
+  @@unique([messageId, profileId])
+}
+
+model MessageAttachment {
+  id        String  @id @default(uuid())
+  messageId String
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  url       String
+  type      String
+}
+
+// INSTITUTIONAL MODULES
+model Album {
+  id           String              @id @default(uuid())
+  slug         String?             @unique
+  name         String
+  description  String?
+  category     String? // MANSION, EVENT, MEMORY
+  coverImage   String?
+  location     String?
+  typeLabel    String?
+  features     String[]
+  tourVideoUrl String?
+  isMansion    Boolean             @default(false)
+  media        AlbumMedia[]
+  keyRequests  MansionKeyRequest[]
+  createdAt    DateTime            @default(now())
+}
+
+model AlbumMedia {
+  id                  String   @id @default(uuid())
+  albumId             String
+  album               Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  url                 String
+  type                String // IMAGE, VIDEO
+  title               String?
+  description         String?
+  environmentCategory String?
+  order               Int      @default(0)
+  createdAt           DateTime @default(now())
+}
+
+model MansionKeyRequest {
+  id           String   @id @default(uuid())
+  albumId      String
+  album        Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  profileId    String
+  profile      Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  reason       String?
+  status       String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  reviewedById String?
+  responseNote String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  imageUrl    String?
+  category    String
+  link        String?
+  authorId    String
+  author      Profile  @relation(fields: [authorId], references: [id])
+  status      String   @default("ACTIVE")
+  isFeatured  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model GuestbookEntry {
+  id         String   @id @default(uuid())
+  content    String
+  authorName String
+  authorId   String?
+  isApproved Boolean  @default(true)
+  isHidden   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+model MonthlyHighlight {
+  id            String   @id @default(uuid())
+  profileId     String
+  profile       Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  month         Int
+  year          Int
+  description   String?
+  reason        String
+  contributions String?
+  imageUrl      String?
+  createdById   String?
+  createdAt     DateTime @default(now())
+
+  @@unique([profileId, month, year])
+}
+
+model Announcement {
+  id          String    @id @default(uuid())
+  title       String
+  content     String
+  category    String // GENERAL, ACADEMIC, EVENT, INSTITUTIONAL, ADMIN
+  priority    Int       @default(0)
+  isPinned    Boolean   @default(false)
+  publishedAt DateTime  @default(now())
+  expiresAt   DateTime?
+  courseId    String?
+  course      Course?   @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  authorId    String
+  author      Profile   @relation(fields: [authorId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id])
+  title     String
+  content   String
+  link      String?
+  type      String // EVENT, ACADEMIC, CHAT, FEED, ADMIN
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model NotificationPreference {
+  id        String   @id @default(uuid())
+  profileId String   @unique
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  events    Boolean  @default(true)
+  academic  Boolean  @default(true)
+  feed      Boolean  @default(true)
+  chat      Boolean  @default(true)
+  admin     Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+}
+
+model RadioTrack {
+  id        String               @id @default(uuid())
+  title     String
+  artist    String
+  url       String
+  coverUrl  String?
+  duration  Int? // In seconds
+  playlists RadioPlaylistTrack[]
+  createdAt DateTime             @default(now())
+}
+
+model RadioPlaylist {
+  id          String               @id @default(uuid())
+  name        String
+  description String?
+  coverUrl    String?
+  tracks      RadioPlaylistTrack[]
+  createdAt   DateTime             @default(now())
+}
+
+model RadioPlaylistTrack {
+  id         String        @id @default(uuid())
+  playlistId String
+  playlist   RadioPlaylist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  trackId    String
+  track      RadioTrack    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  order      Int
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  resource  String?
+  details   Json?
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  id    String @id @default(uuid())
+  key   String @unique
+  value String
+}

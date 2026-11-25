@@ -1,0 +1,21 @@
+{
+  "name": "enxamistas-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "dev:api": "npm run dev --workspace=@enxamistas/api",
+    "dev:web": "npm run dev --workspace=@enxamistas/web",
+    "build": "npm run build --workspace=@enxamistas/shared && npm run build --workspace=@enxamistas/api && npm run build --workspace=@enxamistas/web",
+    "test": "npm test --workspace=@enxamistas/api",
+    "start": "npm run start --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "rimraf": "^5.0.0"
+  }
+}

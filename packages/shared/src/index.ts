@@ -1,0 +1,249 @@
+import { z } from 'zod';
+
+export enum UserRole {
+  STAFF_ZANGAO = 'STAFF_ZANGAO',
+  ABELHA_RAINHA = 'ABELHA_RAINHA',
+  ABELHA_PRINCESA = 'ABELHA_PRINCESA',
+  ABELHA_PATRONO = 'ABELHA_PATRONO',
+  ABELHA_CONSELHEIRA_REAL = 'ABELHA_CONSELHEIRA_REAL',
+  ABELHA_OPERARIA = 'ABELHA_OPERARIA',
+  KAKUNA = 'KAKUNA',
+  CONVIDADO = 'CONVIDADO',
+}
+
+export const RoleHierarchy: Record<UserRole, number> = {
+  [UserRole.STAFF_ZANGAO]: 100,
+  [UserRole.ABELHA_RAINHA]: 90,
+  [UserRole.ABELHA_PRINCESA]: 80,
+  [UserRole.ABELHA_PATRONO]: 70,
+  [UserRole.ABELHA_CONSELHEIRA_REAL]: 60,
+  [UserRole.ABELHA_OPERARIA]: 50,
+  [UserRole.KAKUNA]: 20,
+  [UserRole.CONVIDADO]: 10,
+};
+
+export const RoleLabels: Record<UserRole, string> = {
+  [UserRole.STAFF_ZANGAO]: 'Staff Zangão',
+  [UserRole.ABELHA_RAINHA]: 'Abelha Rainha',
+  [UserRole.ABELHA_PRINCESA]: 'Abelha Princesa',
+  [UserRole.ABELHA_PATRONO]: 'Abelha Patrono',
+  [UserRole.ABELHA_CONSELHEIRA_REAL]: 'Abelha Conselheira Real',
+  [UserRole.ABELHA_OPERARIA]: 'Abelhas Operárias',
+  [UserRole.KAKUNA]: 'Kakunas (Novatos)',
+  [UserRole.CONVIDADO]: 'Convidados',
+};
+
+// --- AUTH ---
+export const registerSchema = z.object({
+  name: z.string().trim().min(3, 'Nome muito curto').max(80, 'Nome muito longo'),
+  passport: z.string().trim().min(1, 'Passaporte obrigatório').max(32, 'Passaporte inválido'),
+  password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres').max(128),
+  mainCourseId: z.string().min(1, 'Curso principal obrigatório'),
+});
+
+export const loginSchema = z.object({
+  passport: z.string().trim().min(1, 'Passaporte obrigatório'),
+  password: z.string().min(1, 'Senha obrigatória'),
+});
+
+export type RegisterInput = z.infer<typeof registerSchema>;
+export type LoginInput = z.infer<typeof loginSchema>;
+
+// --- PROFILE ---
+export const updateProfileSchema = z.object({
+  avatar: z.string().url('URL de avatar inválida').optional().or(z.literal('')),
+  bio: z.string().max(500).optional(),
+  description: z.string().max(2000).optional(),
+  favoriteMusic: z.string().max(150).optional(),
+  musicGenre: z.string().max(100).optional(),
+  interests: z.string().max(500).optional(),
+  projects: z.string().max(1000).optional(),
+});
+
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+
+// --- FEED ---
+export const postSchema = z.object({
+  content: z.string().trim().min(1, 'Conteúdo não pode ser vazio').max(3000),
+  media: z
+    .array(
+      z.object({
+        url: z.string().min(1),
+        type: z.enum(['IMAGE', 'VIDEO']),
+      })
+    )
+    .max(6)
+    .optional(),
+});
+
+export const updatePostSchema = z.object({
+  content: z.string().trim().min(1, 'Conteúdo não pode ser vazio').max(3000),
+});
+
+export const commentSchema = z.object({
+  content: z.string().trim().min(1, 'Comentário não pode ser vazio').max(1500),
+  parentId: z.string().uuid().optional(),
+});
+
+export const reportSchema = z.object({
+  contentType: z.enum(['POST', 'COMMENT', 'USER', 'GUESTBOOK', 'PROJECT']).default('POST'),
+  postId: z.string().uuid().optional(),
+  commentId: z.string().uuid().optional(),
+  targetUserId: z.string().uuid().optional(),
+  reason: z.string().trim().min(3, 'Informe o motivo').max(120),
+  description: z.string().trim().max(1000).optional(),
+});
+
+export type PostInput = z.infer<typeof postSchema>;
+export type CommentInput = z.infer<typeof commentSchema>;
+export type ReportInput = z.infer<typeof reportSchema>;
+
+// --- EVENTS & CALENDAR ---
+export const eventSchema = z.object({
+  title: z.string().trim().min(3, 'Título muito curto').max(120),
+  description: z.string().trim().min(10, 'Descrição muito curta').max(3000),
+  date: z.string().min(1, 'Data obrigatória'),
+  endDate: z.string().optional(),
+  location: z.string().trim().min(3, 'Localização obrigatória').max(160),
+  category: z.string().trim().min(2).max(60),
+  coverImage: z.string().url().optional().or(z.literal('')),
+  attractions: z.string().max(1000).optional(),
+  extraInfo: z.string().max(1000).optional(),
+  visibility: z.enum(['PUBLIC', 'PRIVATE']).default('PRIVATE'),
+  limit: z.number().int().positive().optional(),
+});
+
+export const eventUpdateSchema = eventSchema.partial().extend({
+  status: z.enum(['SCHEDULED', 'CANCELLED', 'COMPLETED']).optional(),
+});
+
+export const rsvpSchema = z.object({
+  status: z.enum(['CONFIRMED', 'CANCELLED']),
+});
+
+export const commitmentSchema = z.object({
+  title: z.string().trim().min(3).max(120),
+  description: z.string().max(2000).optional(),
+  type: z.enum(['MEETING', 'IMPORTANT_DATE', 'COMMITMENT', 'ACTIVITY']).default('MEETING'),
+  startAt: z.string().min(1),
+  endAt: z.string().optional(),
+  location: z.string().max(160).optional(),
+  visibility: z.enum(['PUBLIC', 'PRIVATE']).default('PRIVATE'),
+});
+
+export type EventInput = z.infer<typeof eventSchema>;
+export type CommitmentInput = z.infer<typeof commitmentSchema>;
+
+// --- ACADEMIC ---
+export const enrollSchema = z.object({
+  courseId: z.string().uuid('Curso inválido'),
+  type: z.enum(['MAIN', 'SECONDARY']).default('SECONDARY'),
+});
+
+export const sessionSchema = z.object({
+  title: z.string().trim().min(3).max(120),
+  description: z.string().max(1500).optional(),
+  date: z.string().min(1),
+  startTime: z.string().max(10).optional(),
+  status: z.enum(['SCHEDULED', 'COMPLETED', 'CANCELLED']).default('SCHEDULED'),
+  teacherNote: z.string().max(1000).optional(),
+});
+
+export const materialSchema = z.object({
+  title: z.string().trim().min(2).max(120),
+  url: z.string().min(1),
+  type: z.enum(['PDF', 'LINK', 'IMAGE']),
+});
+
+export const proofSchema = z.object({
+  sessionId: z.string().uuid(),
+  imageUrl: z.string().min(1),
+  observation: z.string().max(1000).optional(),
+});
+
+export const validateProofSchema = z.object({
+  status: z.enum(['VALIDATED', 'REJECTED']),
+  feedback: z.string().max(1000).optional(),
+});
+
+export const courseCompletionSchema = z.object({
+  profileId: z.string().uuid(),
+  status: z.enum(['APPROVED', 'REJECTED']).default('APPROVED'),
+  notes: z.string().max(1000).optional(),
+  emitMedal: z.boolean().default(true),
+});
+
+export type ProofInput = z.infer<typeof proofSchema>;
+
+// --- MESSAGING ---
+export const messageSchema = z.object({
+  content: z.string().trim().min(1).max(4000),
+  attachments: z
+    .array(
+      z.object({
+        url: z.string().min(1),
+        type: z.string(),
+      })
+    )
+    .optional(),
+});
+
+export type MessageInput = z.infer<typeof messageSchema>;
+
+// --- INSTITUTIONAL / ADMIN ---
+export const announcementSchema = z.object({
+  title: z.string().trim().min(3).max(140),
+  content: z.string().trim().min(5).max(5000),
+  category: z.enum(['GENERAL', 'ACADEMIC', 'EVENT', 'INSTITUTIONAL', 'ADMIN']).default('GENERAL'),
+  priority: z.number().int().min(0).max(10).default(0),
+  isPinned: z.boolean().default(false),
+  expiresAt: z.string().optional().nullable(),
+  courseId: z.string().uuid().optional().nullable(),
+});
+
+export const projectSchema = z.object({
+  title: z.string().trim().min(3).max(120),
+  description: z.string().trim().min(10).max(3000),
+  imageUrl: z.string().url().optional().or(z.literal('')),
+  category: z.string().trim().min(2).max(60),
+  link: z.string().url().optional().or(z.literal('')),
+  status: z.enum(['ACTIVE', 'COMPLETED', 'PAUSED']).default('ACTIVE'),
+});
+
+export const guestbookSchema = z.object({
+  content: z.string().trim().min(3, 'Mensagem muito curta').max(400, 'Máximo de 400 caracteres'),
+  authorName: z.string().trim().min(2).max(60).optional(),
+});
+
+export const monthlyHighlightSchema = z.object({
+  profileId: z.string().uuid(),
+  month: z.number().int().min(1).max(12),
+  year: z.number().int().min(2024).max(2100),
+  description: z.string().max(1500).optional(),
+  reason: z.string().trim().min(5).max(500),
+  contributions: z.string().max(1500).optional(),
+  imageUrl: z.string().url().optional().or(z.literal('')),
+});
+
+export const mansionKeyRequestSchema = z.object({
+  reason: z.string().trim().min(5, 'Explique o motivo da solicitação').max(500),
+});
+
+export const radioTrackSchema = z.object({
+  title: z.string().trim().min(2).max(120),
+  artist: z.string().trim().min(2).max(120),
+  url: z.string().url(),
+  coverUrl: z.string().url().optional().or(z.literal('')),
+  duration: z.number().int().positive().optional(),
+  playlistId: z.string().uuid().optional(),
+});
+
+export const roleChangeSchema = z.object({
+  role: z.nativeEnum(UserRole),
+  reason: z.string().max(500).optional(),
+});
+
+export const suspendUserSchema = z.object({
+  isSuspended: z.boolean(),
+  reason: z.string().max(500).optional(),
+});

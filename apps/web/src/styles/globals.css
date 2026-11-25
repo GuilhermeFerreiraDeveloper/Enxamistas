@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --obsidian: #101112;
+  --graphite: #1B1C1D;
+  --royal-gold: #C49A48;
+  --honey: #E5D3A2;
+  --ivory: #F0EEE8;
+}
+
+body {
+  color: var(--ivory);
+  background-color: var(--obsidian);
+  min-height: 100vh;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-royal-gold hover:bg-royal-gold-dark text-obsidian font-bold py-2 px-6 rounded-sm transition-all duration-500 tracking-wider uppercase text-xs shadow-gold-glow;
+  }
+  
+  .card-premium {
+    @apply bg-graphite border border-white/5 rounded-sm p-8 shadow-premium hover:border-royal-gold/30 transition-all duration-500;
+  }
+  
+  .text-glow-gold {
+    text-shadow: 0 0 15px rgba(196, 154, 72, 0.4);
+  }
+
+  .glass-panel {
+    @apply bg-white/5 backdrop-blur-md border border-white/10;
+  }
+
+  .nav-item-active {
+    @apply text-royal-gold border-r-2 border-royal-gold bg-royal-gold/5;
+  }
+}
+
+.honeycomb-overlay {
+  background-image: radial-gradient(circle at 2px 2px, rgba(196, 154, 72, 0.05) 1px, transparent 0);
+  background-size: 24px 24px;
+}
