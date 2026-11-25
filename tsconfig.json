@@ -3,7 +3,6 @@
     "target": "ESNext",
     "module": "CommonJS",
     "lib": ["ESNext", "DOM"],
-    "moduleResolution": "bundler",
     "strict": true,
     "sourceMap": true,
     "declaration": true,
