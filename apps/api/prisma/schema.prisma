@@ -117,7 +117,9 @@ model Profile {
   mansionKeyRequests     MansionKeyRequest[]
   monthlyHighlights      MonthlyHighlight[]
   cinematics             Cinematic[]
-  radioTracks            RadioTrack[]
+  radioPlaylist          RadioPlaylist?
+  radioTracksAuthor      RadioTrack[]     @relation("RadioTrackAuthor")
+  radioTracksReviewer    RadioTrack[]     @relation("RadioTrackReviewer")
 }
 
 model CourseCategory {
@@ -593,32 +595,33 @@ model NotificationPreference {
 }
 
 model RadioTrack {
-  id        String               @id @default(uuid())
-  title     String
-  artist    String
-  sourceType String             @default("AUDIO") // AUDIO, YOUTUBE
-  url       String?              // áudio direto (.mp3, .ogg, stream)
-  youtubeId String?              // ID do vídeo do YouTube
-  youtubeUrl String?             // URL original do YouTube
-  coverUrl  String?
-  duration  Int? // In seconds
-  mimeType  String? // audio/mpeg, audio/ogg, audio/wav, audio/mp4, audio/aac
-  fileSize  Int? // bytes
-  fileData  Bytes? // áudio armazenado no Neon quando o S3 não está configurado
-  authorId  String
-  author    Profile @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  playlists RadioPlaylistTrack[]
-  createdAt DateTime             @default(now())
+  id              String   @id @default(uuid())
+  title           String
+  artist          String
+  passport        String   // Passaporte do membro que solicitou (organização por membro)
+  referenceUrl    String?  // Link de referência informado pelo membro (YouTube, Spotify, etc.)
+  status          String   @default("SOLICITADA") // SOLICITADA, EM_ANALISE, ADICIONADA_PLAYLIST, RECUSADA
+  filePath        String?  // Caminho do arquivo .mp3 (ex: musicas/123456/musica_01.mp3)
+  reviewedById    String?  // Staff que analisou
+  reviewedBy      Profile? @relation("RadioTrackReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt      DateTime?
+  rejectionReason String?
+  authorId        String   // Membro que solicitou
+  author          Profile  @relation("RadioTrackAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  playlistTracks  RadioPlaylistTrack[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model RadioPlaylist {
-  id          String               @id @default(uuid())
+  id          String   @id @default(uuid())
   name        String
   description String?
-  coverUrl    String?
+  profileId   String   @unique // Um playlist por membro
+  profile     Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   tracks      RadioPlaylistTrack[]
-  createdAt   DateTime             @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model RadioPlaylistTrack {
@@ -628,6 +631,9 @@ model RadioPlaylistTrack {
   trackId    String
   track      RadioTrack    @relation(fields: [trackId], references: [id], onDelete: Cascade)
   order      Int
+  addedAt    DateTime      @default(now())
+
+  @@unique([playlistId, trackId])
 }
 
 model AuditLog {

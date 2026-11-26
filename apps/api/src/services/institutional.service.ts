@@ -1,26 +1,34 @@
-import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
 import {
   announcementSchema,
-  extractYoutubeId,
   guestbookSchema,
   mansionKeyRequestSchema,
   monthlyHighlightSchema,
   projectSchema,
-  radioAudioMetadataSchema,
-  radioTrackSchema,
   RoleHierarchy,
   UserRole,
-  AUDIO_MIME_TYPES,
 } from '@enxamistas/shared';
 import { AppError } from '../errors/AppError';
 import { AuditService } from './audit.service';
 import { NotificationService } from './notification.service';
 import { MedalService } from './medal.service';
-import { storageService } from './storage.service';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const notificationService = new NotificationService();
 const medalService = new MedalService();
+
+function getRadioMusicRoot() {
+  if (process.env.RADIO_MUSIC_DIR?.trim()) {
+    return path.resolve(process.env.RADIO_MUSIC_DIR.trim());
+  }
+
+  const cwdRoot = path.resolve(process.cwd(), 'musicas');
+  if (fs.existsSync(cwdRoot)) return cwdRoot;
+
+  const monorepoRoot = path.resolve(process.cwd(), '..', '..', 'musicas');
+  return fs.existsSync(monorepoRoot) ? monorepoRoot : cwdRoot;
+}
 
 export class InstitutionalService {
   // --- PUBLIC PORTAL / SETTINGS ---
@@ -480,290 +488,319 @@ export class InstitutionalService {
     return highlight;
   }
 
-  // --- RADIO ---
+  // --- RADIO: SISTEMA DE PEDIDOS DE MÚSICAS ---
+
   async getRadioData() {
-    const [tracks, playlists] = await prisma.$transaction([
-      prisma.radioTrack.findMany({
-        where: { status: 'APPROVED' },
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.radioPlaylist.findMany({
-        include: {
-          tracks: {
-            include: { track: true },
-            orderBy: { order: 'asc' },
+    const tracks = await prisma.radioTrack.findMany({
+      where: { status: 'ADICIONADA_PLAYLIST', filePath: { not: null } },
+      include: {
+        author: { select: { id: true, name: true, avatar: true, user: { select: { passport: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const playlists = await prisma.radioPlaylist.findMany({
+      include: {
+        profile: { select: { id: true, name: true, user: { select: { passport: true } } } },
+        tracks: {
+          include: {
+            track: {
+              select: {
+                id: true,
+                title: true,
+                artist: true,
+                filePath: true,
+                passport: true,
+                createdAt: true,
+              },
+            },
           },
+          orderBy: { order: 'asc' },
         },
-        orderBy: { createdAt: 'desc' },
-      }),
-    ]);
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
     return { tracks, playlists };
   }
 
-  async addRadioTrack(
-    rawData: any,
+  async createRadioRequest(
+    rawData: { title: string; artist: string; referenceUrl?: string },
     actorProfileId: string,
     actorUserId: string
   ) {
-    const data = radioTrackSchema.parse(rawData);
+    const { title, artist, referenceUrl } = rawData;
 
-    let sourceType = data.sourceType || 'AUDIO';
-    let url: string | null = data.url || null;
-    let youtubeId: string | null = null;
-    let youtubeUrl: string | null = data.youtubeUrl || null;
-
-    if (sourceType === 'YOUTUBE' || (youtubeUrl && !url)) {
-      sourceType = 'YOUTUBE';
-      youtubeId = extractYoutubeId(youtubeUrl!);
-      if (!youtubeId) {
-        throw new AppError(
-          'URL do YouTube inválida. Use links como youtube.com/watch?v=..., youtu.be/... ou youtube.com/shorts/...',
-          400,
-          'INVALID_YOUTUBE_URL'
-        );
-      }
-      url = null;
-    } else if (!url) {
-      throw new AppError('Informe a URL do áudio ou uma URL válida do YouTube.', 400, 'INVALID_RADIO_URL');
+    if (!title || title.trim().length < 2) {
+      throw new AppError('Título da música é obrigatório.', 400, 'INVALID_TITLE');
+    }
+    if (!artist || artist.trim().length < 2) {
+      throw new AppError('Artista é obrigatório.', 400, 'INVALID_ARTIST');
     }
 
-    const track = await prisma.radioTrack.create({
-      data: {
-        title: data.title,
-        artist: data.artist,
-        sourceType,
-        url,
-        youtubeId,
-        youtubeUrl,
-        duration: data.duration || null,
-        authorId: actorProfileId,
-        status: 'PENDING',
-      },
+    if (referenceUrl?.trim()) {
+      try {
+        const url = new URL(referenceUrl.trim());
+        if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Invalid protocol');
+      } catch {
+        throw new AppError('O link de referência deve ser uma URL válida começando com http:// ou https://.', 400, 'INVALID_REFERENCE_URL');
+      }
+    }
+
+    const profile = await prisma.profile.findUnique({
+      where: { id: actorProfileId },
+      include: { user: { select: { passport: true } } },
     });
 
-    if (data.playlistId) {
-      const count = await prisma.radioPlaylistTrack.count({ where: { playlistId: data.playlistId } });
-      await prisma.radioPlaylistTrack.create({
-        data: { playlistId: data.playlistId, trackId: track.id, order: count + 1 },
+    if (!profile) {
+      throw new AppError('Perfil não encontrado.', 404, 'PROFILE_NOT_FOUND');
+    }
+
+    const passport = profile.user.passport;
+
+    let playlist = await prisma.radioPlaylist.findUnique({
+      where: { profileId: actorProfileId },
+    });
+
+    if (!playlist) {
+      playlist = await prisma.radioPlaylist.create({
+        data: {
+          name: `Playlist de ${passport}`,
+          description: `Playlist individual do membro ${passport}`,
+          profileId: actorProfileId,
+        },
       });
     }
 
-    await AuditService.log(actorUserId, 'RADIO_ADD_TRACK', 'RadioTrack', { id: track.id, title: track.title, sourceType });
-    return track;
-  }
-
-  async createRadioPlaylist(name: string, description: string | undefined, actorUserId: string) {
-    const playlist = await prisma.radioPlaylist.create({
-      data: { name, description },
-    });
-    await AuditService.log(actorUserId, 'RADIO_CREATE_PLAYLIST', 'RadioPlaylist', { id: playlist.id });
-    return playlist;
-  }
-
-  async deleteRadioTrack(id: string, actorUserId: string) {
-    await prisma.radioTrack.delete({ where: { id } });
-    await AuditService.log(actorUserId, 'RADIO_DELETE_TRACK', 'RadioTrack', { id });
-  }
-
-  async listPendingRadioTracks() {
-    return prisma.radioTrack.findMany({
-      where: { status: 'PENDING' },
+    const request = await prisma.radioTrack.create({
+      data: {
+        title: title.trim(),
+        artist: artist.trim(),
+        passport,
+        referenceUrl: referenceUrl?.trim() || null,
+        status: 'SOLICITADA',
+        authorId: actorProfileId,
+      },
       include: {
-        author: { select: { id: true, name: true, avatar: true, user: { select: { passport: true, role: true } } } },
+        author: { select: { id: true, name: true, avatar: true, user: { select: { passport: true } } } },
+      },
+    });
+
+    await AuditService.log(actorUserId, 'RADIO_REQUEST_CREATE', 'RadioTrack', {
+      id: request.id,
+      title: request.title,
+      artist: request.artist,
+      passport,
+    });
+
+    return request;
+  }
+
+  async getMyRadioRequests(profileId: string) {
+    return prisma.radioTrack.findMany({
+      where: { authorId: profileId },
+      include: {
+        reviewedBy: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async approveRadioTrack(id: string, actorUserId: string) {
-    const track = await prisma.radioTrack.update({
-      where: { id },
-      data: { status: 'APPROVED' },
+  async getMyRadioPlaylist(profileId: string) {
+    const playlist = await prisma.radioPlaylist.findUnique({
+      where: { profileId },
       include: {
-        author: { select: { id: true, name: true, avatar: true } },
+        tracks: {
+          include: {
+            track: {
+              select: {
+                id: true,
+                title: true,
+                artist: true,
+                filePath: true,
+                passport: true,
+                status: true,
+                createdAt: true,
+              },
+            },
+          },
+          orderBy: { order: 'asc' },
+        },
       },
     });
 
-    await AuditService.log(actorUserId, 'RADIO_APPROVE_TRACK', 'RadioTrack', { id, title: track.title });
-    return track;
+    return playlist;
   }
 
-  async rejectRadioTrack(id: string, actorUserId: string) {
-    const track = await prisma.radioTrack.update({
-      where: { id },
-      data: { status: 'REJECTED' },
+  async listAllRadioRequests() {
+    return prisma.radioTrack.findMany({
       include: {
-        author: { select: { id: true, name: true, avatar: true } },
+        author: { select: { id: true, name: true, avatar: true, user: { select: { passport: true } } } },
+        reviewedBy: { select: { id: true, name: true } },
       },
+      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
     });
-
-    await AuditService.log(actorUserId, 'RADIO_REJECT_TRACK', 'RadioTrack', { id, title: track.title });
-    return track;
   }
 
-  // --- ÁUDIO ENVIADO DO DISPOSITIVO ---
-
-  private validateAudioMagicBytes(mimeType: string, buffer: Buffer) {
-    if (!buffer || buffer.length < 4) {
-      throw new AppError('Áudio inválido ou corrompido.', 400, 'INVALID_AUDIO');
-    }
-
-    if (mimeType === 'audio/mpeg') {
-      const isId3 = buffer.subarray(0, 3).toString('ascii') === 'ID3';
-      const isMpegSync = buffer[0] === 0xff && (buffer[1] & 0xf0) === 0xf0;
-      if (!isId3 && !isMpegSync) {
-        throw new AppError(
-          'Conteúdo do arquivo não corresponde a um MP3 válido.',
-          400,
-          'INVALID_SIGNATURE'
-        );
-      }
-    } else if (mimeType === 'audio/ogg') {
-      if (buffer.subarray(0, 4).toString('ascii') !== 'OggS') {
-        throw new AppError(
-          'Conteúdo do arquivo não corresponde a um OGG válido.',
-          400,
-          'INVALID_SIGNATURE'
-        );
-      }
-    } else if (mimeType === 'audio/wav' || mimeType === 'audio/x-wav') {
-      if (buffer.subarray(0, 4).toString('ascii') !== 'RIFF') {
-        throw new AppError(
-          'Conteúdo do arquivo não corresponde a um WAV válido.',
-          400,
-          'INVALID_SIGNATURE'
-        );
-      }
-    } else if (mimeType === 'audio/mp4' || mimeType === 'audio/aac') {
-      const boxType = buffer.length >= 8 ? buffer.subarray(4, 8).toString('ascii') : '';
-      if (!boxType.includes('ftyp')) {
-        const isAdts = buffer[0] === 0xff && (buffer[1] & 0xf6) === 0xf0;
-        if (!isAdts) {
-          throw new AppError(
-            'Conteúdo do arquivo não corresponde a um AAC/M4A válido.',
-            400,
-            'INVALID_SIGNATURE'
-          );
-        }
-      }
-    }
-  }
-
-  async uploadRadioAudio(params: {
-    authorProfileId: string;
-    actorUserId: string;
-    title: string;
-    artist: string;
-    coverUrl?: string;
-    duration?: number;
-    mimeType: string;
-    buffer: Buffer;
-  }) {
-    const ALLOWED_AUDIO_MIMES = [...AUDIO_MIME_TYPES];
-    const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
-
-    const metadata = radioAudioMetadataSchema.parse({
-      title: params.title,
-      artist: params.artist,
-      duration: params.duration,
+  async updateRadioRequestStatus(
+    id: string,
+    status: 'SOLICITADA' | 'EM_ANALISE' | 'ADICIONADA_PLAYLIST' | 'RECUSADA',
+    actorProfileId: string,
+    actorUserId: string,
+    rejectionReason?: string,
+    filePath?: string
+  ) {
+    const existing = await prisma.radioTrack.findUnique({
+      where: { id },
+      include: { author: { select: { user: { select: { passport: true } } } } },
     });
 
-    if (!ALLOWED_AUDIO_MIMES.includes(params.mimeType as any)) {
-      throw new AppError(
-        `Formato de áudio não permitido (${params.mimeType}). Envie MP3, OGG, WAV, M4A ou AAC.`,
-        400,
-        'INVALID_FILE_TYPE'
-      );
+    if (!existing) {
+      throw new AppError('Pedido não encontrado.', 404, 'REQUEST_NOT_FOUND');
     }
 
-    const useS3 = storageService.isConfigured();
-    if (!params.buffer || params.buffer.length === 0) {
-      throw new AppError('Arquivo de áudio vazio.', 400, 'EMPTY_FILE');
-    }
-    if (params.buffer.length > MAX_AUDIO_BYTES) {
-      throw new AppError(
-        `O áudio excede o limite de ${Math.round(MAX_AUDIO_BYTES / (1024 * 1024))}MB. Para arquivos maiores, use o YouTube.`,
-        400,
-        'FILE_TOO_LARGE'
-      );
+    if (status === 'RECUSADA' && !rejectionReason?.trim()) {
+      throw new AppError('Informe o motivo da recusa.', 400, 'REJECTION_REASON_REQUIRED');
     }
 
-    this.validateAudioMagicBytes(params.mimeType, params.buffer);
+    if (status === 'ADICIONADA_PLAYLIST') {
+      if (!filePath?.trim()) {
+        throw new AppError('Informe o nome do arquivo MP3 adicionado manualmente.', 400, 'FILE_PATH_REQUIRED');
+      }
 
-    const id = crypto.randomUUID();
-    let audioUrl = `/api/radio/audio/${id}/stream`;
-    let fileData: Buffer | null = params.buffer;
+      const safeName = path.basename(filePath.trim());
+      if (safeName !== filePath.trim() || !safeName.toLowerCase().endsWith('.mp3')) {
+        throw new AppError('O arquivo deve ser informado apenas pelo nome e terminar em .mp3.', 400, 'INVALID_FILE_PATH');
+      }
 
-    if (useS3) {
-      const uploaded = await storageService.uploadBuffer({
-        scope: 'audios',
-        mimeType: params.mimeType,
-        buffer: params.buffer,
-        ownerId: params.authorProfileId,
-      });
-      audioUrl = uploaded.url;
-      fileData = null;
+      const passport = existing.passport || existing.author.user.passport;
+      const passportDir = path.resolve(getRadioMusicRoot(), passport);
+      fs.mkdirSync(passportDir, { recursive: true });
+      const fullPath = path.resolve(passportDir, safeName);
+
+      if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) {
+        throw new AppError(`Arquivo não encontrado em musicas/${passport}/${safeName}.`, 404, 'AUDIO_FILE_NOT_FOUND');
+      }
     }
 
-    const created = await prisma.radioTrack.create({
-      data: {
-        id,
-        title: metadata.title,
-        artist: metadata.artist,
-        sourceType: 'AUDIO',
-        url: audioUrl,
-        youtubeId: null,
-        youtubeUrl: null,
-        duration: metadata.duration || null,
-        mimeType: params.mimeType,
-        fileSize: params.buffer.length,
-        fileData,
-        authorId: params.authorProfileId,
-        status: 'PENDING',
-      },
-    });
-
-    await AuditService.log(params.actorUserId, 'RADIO_UPLOAD_AUDIO', 'RadioTrack', {
-      id: created.id,
-      title: created.title,
-      mimeType: params.mimeType,
-      fileSize: params.buffer.length,
-      storage: useS3 ? 's3' : 'database',
-    });
-
-    return {
-      id: created.id,
-      title: created.title,
-      artist: created.artist,
-      sourceType: created.sourceType,
-      url: created.url,
-      duration: created.duration,
-      mimeType: created.mimeType,
-      fileSize: created.fileSize,
-      author: { id: created.authorId },
+    const updateData: any = {
+      status,
+      reviewedById: actorProfileId,
+      reviewedAt: new Date(),
+      rejectionReason: status === 'RECUSADA' ? rejectionReason?.trim() || null : null,
+      filePath: status === 'ADICIONADA_PLAYLIST' ? path.basename(filePath!.trim()) : status === 'RECUSADA' ? null : undefined,
     };
-  }
 
-  async getRadioAudioStreamFile(id: string) {
-    const item = await prisma.radioTrack.findUnique({
+    if (updateData.filePath === undefined) delete updateData.filePath;
+
+    const track = await prisma.radioTrack.update({
       where: { id },
-      select: {
-        id: true,
-        sourceType: true,
-        title: true,
-        mimeType: true,
-        url: true,
-        fileData: true,
+      data: updateData,
+      include: {
+        author: { select: { id: true, name: true, user: { select: { passport: true } } } },
+        reviewedBy: { select: { id: true, name: true } },
       },
     });
 
-    if (!item) {
-      throw new AppError('Faixa de áudio não encontrada.', 404, 'AUDIO_NOT_FOUND');
-    }
-    if (item.sourceType !== 'AUDIO') {
-      throw new AppError('Este recurso não é um áudio.', 400, 'NOT_AN_AUDIO');
+    await AuditService.log(actorUserId, `RADIO_REQUEST_${status}`, 'RadioTrack', {
+      id: track.id,
+      title: track.title,
+      status,
+      rejectionReason,
+    });
+
+    if (status === 'ADICIONADA_PLAYLIST') {
+      const playlist = await prisma.radioPlaylist.findUnique({
+        where: { profileId: track.authorId },
+      });
+
+      if (!playlist) {
+        throw new AppError('Playlist do membro não encontrada.', 404, 'PLAYLIST_NOT_FOUND');
+      }
+
+      {
+        const lastOrder = await prisma.radioPlaylistTrack.findFirst({
+          where: { playlistId: playlist.id },
+          orderBy: { order: 'desc' },
+          select: { order: true },
+        });
+
+        await prisma.radioPlaylistTrack.upsert({
+          where: {
+            playlistId_trackId: {
+              playlistId: playlist.id,
+              trackId: track.id,
+            },
+          },
+          update: {},
+          create: {
+            playlistId: playlist.id,
+            trackId: track.id,
+            order: (lastOrder?.order || 0) + 1,
+          },
+        });
+      }
+    } else {
+      const playlist = await prisma.radioPlaylist.findUnique({
+        where: { profileId: track.authorId },
+      });
+      if (playlist) {
+        await prisma.radioPlaylistTrack.deleteMany({
+          where: { playlistId: playlist.id, trackId: track.id },
+        });
+      }
     }
 
-    return item;
+    return track;
   }
+
+  async deleteRadioRequest(id: string, actorUserId: string) {
+    const track = await prisma.radioTrack.findUnique({
+      where: { id },
+      select: { id: true, title: true, authorId: true, status: true },
+    });
+
+    if (!track) {
+      throw new AppError('Pedido não encontrado.', 404, 'REQUEST_NOT_FOUND');
+    }
+
+    await prisma.radioTrack.delete({ where: { id } });
+
+    await AuditService.log(actorUserId, 'RADIO_REQUEST_DELETE', 'RadioTrack', {
+      id: track.id,
+      title: track.title,
+    });
+  }
+
+  async getAuthorizedRadioFile(passport: string, filename: string) {
+    if (!/^[-a-zA-Z0-9]+$/.test(passport)) {
+      throw new AppError('Passaporte inválido.', 400, 'INVALID_PASSPORT');
+    }
+
+    if (path.basename(filename) !== filename || !filename.toLowerCase().endsWith('.mp3')) {
+      throw new AppError('Nome de arquivo de áudio inválido.', 400, 'INVALID_AUDIO_FILENAME');
+    }
+
+    const track = await prisma.radioTrack.findFirst({
+      where: {
+        passport,
+        filePath: filename,
+        status: 'ADICIONADA_PLAYLIST',
+      },
+      select: { id: true },
+    });
+
+    if (!track) {
+      throw new AppError('Faixa não autorizada para reprodução.', 404, 'AUDIO_NOT_AUTHORIZED');
+    }
+
+    const filePath = path.resolve(getRadioMusicRoot(), passport, filename);
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      throw new AppError('Arquivo de áudio não encontrado.', 404, 'AUDIO_FILE_NOT_FOUND');
+    }
+
+    return filePath;
+  }
+
+  // Os arquivos MP3 são adicionados manualmente pela Staff em musicas/PASSAPORTE/.
 }

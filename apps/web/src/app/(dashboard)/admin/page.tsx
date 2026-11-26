@@ -37,7 +37,9 @@ export default function AdminPage() {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [newRoleForm, setNewRoleForm] = useState({ code: '', name: '', level: 30, description: '' });
-  const [pendingRadio, setPendingRadio] = useState<any[]>([]);
+  const [radioRequests, setRadioRequests] = useState<any[]>([]);
+  const [radioFilePaths, setRadioFilePaths] = useState<Record<string, string>>({});
+  const [radioRejectionReasons, setRadioRejectionReasons] = useState<Record<string, string>>({});
 
   const hasAccess =
     (RoleHierarchy[(user?.role || 'CONVIDADO') as UserRole] ?? 0) >=
@@ -74,8 +76,8 @@ export default function AdminPage() {
         setSettings(map);
         setAuditLogs(aRes.data?.items || []);
       } else if (activeTab === 'RADIO') {
-        const res = await api.get('/radio/pending');
-        setPendingRadio(Array.isArray(res.data) ? res.data : []);
+        const res = await api.get('/radio/requests');
+        setRadioRequests(Array.isArray(res.data) ? res.data : []);
       }
     } catch (err: any) {
       showToast(err.response?.data?.error || 'Erro ao carregar dados administrativos.', 'error');
@@ -153,23 +155,30 @@ export default function AdminPage() {
     }
   };
 
-  const handleApproveRadio = async (trackId: string) => {
+  const handleUpdateRadioStatus = async (
+    trackId: string,
+    status: 'SOLICITADA' | 'EM_ANALISE' | 'ADICIONADA_PLAYLIST' | 'RECUSADA'
+  ) => {
     try {
-      await api.put(`/radio/tracks/${trackId}/approve`);
+      await api.put(`/radio/requests/${trackId}/status`, {
+        status,
+        filePath: radioFilePaths[trackId],
+        rejectionReason: radioRejectionReasons[trackId],
+      });
       await loadTab('RADIO');
-      showToast('Faixa aprovada na rádio!', 'success');
+      showToast(status === 'RECUSADA' ? 'Pedido recusado.' : 'Status da música atualizado.', 'success');
     } catch (err: any) {
-      showToast(err.response?.data?.error || 'Erro ao aprovar faixa.', 'error');
+      showToast(err.response?.data?.error || 'Erro ao atualizar pedido.', 'error');
     }
   };
 
-  const handleRejectRadio = async (trackId: string) => {
+  const handleDeleteRadioRequest = async (trackId: string) => {
     try {
-      await api.put(`/radio/tracks/${trackId}/reject`);
+      await api.delete(`/radio/requests/${trackId}`);
       await loadTab('RADIO');
-      showToast('Faixa rejeitada.', 'info');
+      showToast('Pedido removido.', 'info');
     } catch (err: any) {
-      showToast(err.response?.data?.error || 'Erro ao rejeitar faixa.', 'error');
+      showToast(err.response?.data?.error || 'Erro ao remover pedido.', 'error');
     }
   };
 
@@ -214,7 +223,7 @@ export default function AdminPage() {
           { k: 'RBAC', l: 'RBAC & Permissões', icon: KeyRound },
           { k: 'MODERATION', l: 'Denúncias', icon: AlertTriangle },
           { k: 'PROOFS_KEYS', l: 'Comprovantes & Chaves', icon: CheckCircle2 },
-          { k: 'RADIO', l: 'Rádio - Moderação', icon: Radio },
+          { k: 'RADIO', l: 'Músicas', icon: Radio },
           { k: 'SETTINGS_LOGS', l: 'Configurações & Auditoria', icon: Settings },
         ].map((t) => (
           <button
@@ -516,30 +525,70 @@ export default function AdminPage() {
       {tab === 'RADIO' && (
         <div className="space-y-4">
           <h2 className="text-sm font-bold uppercase tracking-widest text-royal-gold flex items-center gap-2">
-            <Radio size={14} /> Faixas Pendentes de Aprovação ({pendingRadio.length})
+            <Radio size={14} /> Músicas ({radioRequests.length})
           </h2>
-          {pendingRadio.length === 0 ? (
+          {radioRequests.length === 0 ? (
             <p className="text-xs text-white/40 bg-graphite border border-white/5 p-8 rounded-sm text-center">
-              Nenhuma faixa pendente para aprovação no momento.
+              Nenhum pedido de música no momento.
             </p>
           ) : (
-            <div className="space-y-2">
-              {pendingRadio.map((track) => (
-                <div key={track.id} className="bg-graphite border border-white/5 p-4 rounded-sm flex flex-wrap items-center justify-between gap-3 text-xs">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-white">{track.title}</p>
-                    <p className="text-white/50">{track.artist}</p>
-                    <p className="text-white/40">
-                      Por {track.author?.name} (#{track.author?.user?.passport}) • {track.sourceType}
-                    </p>
+            <div className="space-y-3">
+              {radioRequests.map((track) => (
+                <div key={track.id} className="bg-graphite border border-white/5 p-4 rounded-sm space-y-3 text-xs">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-white">{track.title}</p>
+                      <p className="text-white/50">{track.artist}</p>
+                      <p className="text-white/40">
+                        Por {track.author?.name} • Passaporte #{track.author?.user?.passport || track.passport}
+                      </p>
+                      {track.referenceUrl && (
+                        <a className="text-royal-gold break-all" href={track.referenceUrl} target="_blank" rel="noreferrer">
+                          {track.referenceUrl}
+                        </a>
+                      )}
+                      {track.rejectionReason && (
+                        <p className="text-red-400 mt-1">Motivo: {track.rejectionReason}</p>
+                      )}
+                    </div>
+                    <span className="text-[10px] px-2 py-1 border border-white/10 rounded text-white/60">
+                      {track.status}
+                    </span>
                   </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <Button size="sm" onClick={() => handleApproveRadio(track.id)}>
-                      <CheckCircle2 size={12} /> Aprovar
-                    </Button>
-                    <Button size="sm" variant="secondary" onClick={() => handleRejectRadio(track.id)}>
-                      <XCircle size={12} /> Rejeitar
-                    </Button>
+
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <input
+                        value={radioFilePaths[track.id] || track.filePath || ''}
+                        onChange={(e) => setRadioFilePaths((prev) => ({ ...prev, [track.id]: e.target.value }))}
+                        placeholder="Nome do MP3, ex.: musica.mp3"
+                        className="w-full rounded-sm bg-obsidian border border-white/10 px-3 py-2 text-white"
+                      />
+                      <div className="flex gap-2 flex-wrap">
+                        <Button size="sm" onClick={() => handleUpdateRadioStatus(track.id, 'EM_ANALISE')}>
+                          Em análise
+                        </Button>
+                        <Button size="sm" onClick={() => handleUpdateRadioStatus(track.id, 'ADICIONADA_PLAYLIST')}>
+                          <CheckCircle2 size={12} /> Adicionar à playlist
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <input
+                        value={radioRejectionReasons[track.id] || ''}
+                        onChange={(e) => setRadioRejectionReasons((prev) => ({ ...prev, [track.id]: e.target.value }))}
+                        placeholder="Motivo da recusa"
+                        className="w-full rounded-sm bg-obsidian border border-white/10 px-3 py-2 text-white"
+                      />
+                      <div className="flex gap-2 flex-wrap">
+                        <Button size="sm" variant="secondary" onClick={() => handleUpdateRadioStatus(track.id, 'RECUSADA')}>
+                          <XCircle size={12} /> Recusar
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={() => handleDeleteRadioRequest(track.id)}>
+                          Remover
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}

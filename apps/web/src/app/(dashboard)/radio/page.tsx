@@ -1,73 +1,27 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  Radio,
-  Play,
-  Pause,
-  Heart,
-  Plus,
-  Trash2,
-  Music,
-  Upload,
-  File,
-} from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Radio, Play, Pause, Heart, Plus, Music, Clock, List } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { useRadio, RadioTrackItem } from '@/contexts/RadioContext';
 import { Button } from '@/components/ui/Button';
-import { Modal } from '@/components/ui/Modal';
-import {
-  RoleHierarchy,
-  UserRole,
-  extractYoutubeId,
-  audioMimeToExt,
-} from '@enxamistas/shared';
-
-const MAX_AUDIO_MB = 15;
-const ALLOWED_AUDIO_EXTS = ['.mp3', '.ogg', '.wav', '.m4a', '.aac'];
+import { RoleHierarchy, UserRole } from '@enxamistas/shared';
 
 export default function RadioPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const {
-    tracks,
-    setTracks,
-    currentTrack,
-    isPlaying,
-    favorites,
-    playTrack,
-    togglePlay,
-    toggleFavorite,
+    tracks, setTracks, currentTrack, isPlaying, favorites,
+    playTrack, togglePlay, toggleFavorite, myRequests, setMyRequests,
+    myPlaylist, setMyPlaylist,
   } = useRadio();
 
-  const [playlists, setPlaylists] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<'player' | 'pedidos' | 'playlist'>('player');
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState<{
-    title: string;
-    artist: string;
-    sourceType: 'AUDIO' | 'YOUTUBE';
-    audioInputMode: 'URL' | 'FILE';
-    url: string;
-    youtubeUrl: string;
-    youtubeId: string;
-  }>({
-    title: '',
-    artist: '',
-    sourceType: 'AUDIO',
-    audioInputMode: 'URL',
-    url: '',
-    youtubeUrl: '',
-    youtubeId: '',
-  });
-
-  // Upload de arquivo do dispositivo (celular ou PC)
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [audioSubmitting, setAudioSubmitting] = useState(false);
-  const [audioUploadProgress, setAudioUploadProgress] = useState(0);
+  const [form, setForm] = useState({ title: '', artist: '', referenceUrl: '' });
 
   const isLeader =
     (RoleHierarchy[(user?.role || 'CONVIDADO') as UserRole] ?? 0) >=
@@ -76,161 +30,61 @@ export default function RadioPage() {
   const loadRadio = async () => {
     try {
       const res = await api.get('/radio');
-      const loadedTracks: RadioTrackItem[] = res.data?.tracks || [];
-      setTracks(loadedTracks);
-      setPlaylists(res.data?.playlists || []);
+      setTracks(res.data?.tracks || []);
     } catch {
-      showToast('Erro ao carregar biblioteca da rádio.', 'error');
-    } finally {
-      setLoading(false);
+      showToast('Erro ao carregar rádio.', 'error');
+    } finally { setLoading(false); }
+  };
+
+  const loadMyRequests = async () => {
+    try {
+      const res = await api.get('/radio/my-requests');
+      setMyRequests(res.data || []);
+    } catch {
+      showToast('Erro ao carregar pedidos.', 'error');
+    }
+  };
+
+  const loadMyPlaylist = async () => {
+    try {
+      const res = await api.get('/radio/my-playlist');
+      setMyPlaylist(res.data || null);
+    } catch {
+      showToast('Erro ao carregar playlist.', 'error');
     }
   };
 
   useEffect(() => {
     loadRadio();
+    loadMyRequests();
+    loadMyPlaylist();
   }, []);
 
-  const resetComposer = () => {
-    setForm({
-      title: '',
-      artist: '',
-      sourceType: 'AUDIO',
-      audioInputMode: 'URL',
-      url: '',
-      youtubeUrl: '',
-      youtubeId: '',
-    });
-    setAudioFile(null);
-    setAudioUploadProgress(0);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const handleAddTrack = async (e: React.FormEvent) => {
+  const handleRequestMusic = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLeader) return;
-
+    if (!form.title.trim() || !form.artist.trim()) {
+      showToast('Título e artista são obrigatórios.', 'error');
+      return;
+    }
     try {
-      if (form.sourceType === 'YOUTUBE') {
-        if (!form.youtubeUrl) {
-          showToast('Informe a URL do YouTube.', 'error');
-          return;
-        }
-        const ytId = extractYoutubeId(form.youtubeUrl);
-        if (!ytId) {
-          showToast('URL do YouTube inválida.', 'error');
-          return;
-        }
-        await api.post('/radio/tracks', {
-          title: form.title,
-          artist: form.artist,
-          sourceType: 'YOUTUBE',
-          youtubeUrl: form.youtubeUrl,
-        });
-      } else if (form.audioInputMode === 'URL') {
-        if (!form.url) {
-          showToast('Informe a URL direta do áudio.', 'error');
-          return;
-        }
-        await api.post('/radio/tracks', {
-          title: form.title,
-          artist: form.artist,
-          sourceType: 'AUDIO',
-          url: form.url,
-        });
-      } else {
-        // Modo arquivo: a importação é feita por handleImportAudioFile
-        if (!audioFile) {
-          showToast('Selecione um arquivo de áudio para importar.', 'error');
-          return;
-        }
-        await handleImportAudioFile(e as React.FormEvent);
-        return;
-      }
-
+      await api.post('/radio/requests', { title: form.title, artist: form.artist, referenceUrl: form.referenceUrl });
       setModalOpen(false);
-      resetComposer();
-      await loadRadio();
-      showToast('Faixa adicionada à rádio!', 'success');
+      setForm({ title: '', artist: '', referenceUrl: '' });
+      await loadMyRequests();
+      showToast('Pedido enviado com sucesso!', 'success');
     } catch (err: any) {
-      showToast(err.response?.data?.error || 'Erro ao cadastrar faixa.', 'error');
+      showToast(err.response?.data?.error || 'Erro ao enviar pedido.', 'error');
     }
   };
 
-  const handleImportAudioFile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isLeader) return;
-    if (!audioFile) {
-      showToast('Selecione um arquivo de áudio do dispositivo.', 'error');
-      return;
-    }
-
-    const ext = ('.' + audioFile.name.split('.').pop()?.toLowerCase()) || '';
-    if (!ALLOWED_AUDIO_EXTS.includes(ext)) {
-      showToast(
-        `Formato não suportado. Envie: ${ALLOWED_AUDIO_EXTS.join(', ')}`,
-        'error'
-      );
-      return;
-    }
-    if (audioFile.size > MAX_AUDIO_MB * 1024 * 1024) {
-      showToast(
-        `O arquivo excede ${MAX_AUDIO_MB}MB. Use o YouTube para arquivos maiores.`,
-        'error'
-      );
-      return;
-    }
-
-    setAudioSubmitting(true);
-    setAudioUploadProgress(0);
-
-    try {
-      const buffer = await audioFile.arrayBuffer();
-
-      await api.post('/radio/uploads/audio', buffer, {
-        timeout: 180_000,
-        headers: {
-          'Content-Type': audioFile.type || 'audio/mpeg',
-          'x-radio-title': encodeURIComponent(
-            form.title || audioFile.name.replace(ext, '')
-          ),
-          'x-radio-artist': encodeURIComponent(form.artist || ''),
-        },
-        onUploadProgress: (evt) => {
-          if (evt.total) {
-            setAudioUploadProgress(Math.round((evt.loaded * 100) / evt.total));
-          }
-        },
-      });
-
-      setModalOpen(false);
-      resetComposer();
-      await loadRadio();
-      showToast('Áudio importado para a rádio com sucesso!', 'success');
-    } catch (err: any) {
-      showToast(
-        err.response?.data?.error || 'Erro ao importar áudio do dispositivo.',
-        'error'
-      );
-    } finally {
-      setAudioSubmitting(false);
-    }
-  };
-
-  const handleDeleteTrack = async (id: string) => {
-    try {
-      await api.delete(`/radio/tracks/${id}`);
-      await loadRadio();
-      showToast('Faixa removida.', 'info');
-    } catch {
-      showToast('Erro ao remover faixa.', 'error');
-    }
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + ' B';
-    const kb = bytes / 1024;
-    if (kb < 1024) return kb.toFixed(1) + ' KB';
-    return (kb / 1024).toFixed(1) + ' MB';
+  const formatStatus = (status: string) => {
+    const map: Record<string, { label: string; color: string }> = {
+      SOLICITADA: { label: 'Solicitada', color: 'text-blue-400' },
+      EM_ANALISE: { label: 'Em Análise', color: 'text-yellow-400' },
+      ADICIONADA_PLAYLIST: { label: 'Adicionada à Playlist', color: 'text-green-400' },
+      RECUSADA: { label: 'Recusada', color: 'text-red-400' },
+    };
+    return map[status] || { label: status, color: 'text-white' };
   };
 
   return (
@@ -243,289 +97,178 @@ export default function RadioPage() {
               Frequência Interna
             </span>
           </div>
-          <h1 className="text-4xl font-bold text-white uppercase tracking-tight">Rádio Enxamistas</h1>
+          <h1 className="text-4xl font-bold text-white uppercase tracking-tight">
+            Rádio Enxamistas
+          </h1>
           <p className="text-sm text-white/50">
             O player permanece ativo durante sua navegação pelo portal. Reprodução individual sob demanda.
           </p>
         </div>
-        {isLeader && (
-          <Button onClick={() => setModalOpen(true)}>
-            <Plus size={14} /> Adicionar Faixa
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setTab('player')}
+            className={tab === 'player' ? 'bg-royal-gold text-obsidian' : 'bg-graphite border border-white/10'}
+          >
+            <Clock size={14} /> Player
           </Button>
-        )}
+          <Button
+            onClick={() => setTab('pedidos')}
+            className={tab === 'pedidos' ? 'bg-royal-gold text-obsidian' : 'bg-graphite border border-white/10'}
+          >
+            <List size={14} /> Meus Pedidos
+          </Button>
+          <Button
+            onClick={() => setTab('playlist')}
+            className={tab === 'playlist' ? 'bg-royal-gold text-obsidian' : 'bg-graphite border border-white/10'}
+          >
+            <Music size={14} /> Minha Playlist
+          </Button>
+        </div>
       </div>
 
       {loading ? (
         <div className="h-48 bg-graphite/50 rounded-sm animate-pulse" />
-      ) : tracks.length === 0 ? (
-        <div className="p-12 bg-graphite/40 border border-white/5 rounded-sm text-center text-sm text-white/40">
-          Nenhuma faixa autorizada cadastrada na rádio ainda.
-        </div>
-      ) : (
+      ) : tab === 'player' ? (
         <div className="space-y-3">
-          {tracks.map((track) => {
-            const isCurrent = currentTrack?.id === track.id;
-            const isFav = favorites.includes(track.id);
-            return (
-              <div
-                key={track.id}
-                className={`p-4 rounded-sm border flex items-center justify-between gap-4 ${
-                  isCurrent ? 'bg-graphite border-royal-gold/40' : 'bg-graphite/60 border-white/5'
-                }`}
-              >
-                <div className="flex items-center gap-4 min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => (isCurrent ? togglePlay() : playTrack(track))}
-                    className="w-10 h-10 rounded-full bg-royal-gold text-obsidian flex items-center justify-center shrink-0"
-                  >
-                    {isCurrent && isPlaying ? <Pause size={16} /> : <Play size={16} />}
-                  </button>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <p className="text-sm font-bold text-white truncate">{track.title}</p>
-                      {track.sourceType === 'YOUTUBE' && (
-                        <span className="text-[9px] bg-royal-gold/10 text-royal-gold border border-royal-gold/20 px-1.5 py-0.5 rounded">YT</span>
-                      )}
-                    </div>
-                    <p className="text-xs text-white/50 truncate">{track.artist}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => toggleFavorite(track.id)}
-                    className={isFav ? 'text-red-400' : 'text-white/40 hover:text-red-400'}
-                  >
-                    <Heart size={16} className={isFav ? 'fill-red-400' : ''} />
-                  </button>
-                  {isLeader && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteTrack(track.id)}
-                      className="text-white/40 hover:text-red-400"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {playlists.length > 0 && (
-        <section className="space-y-4">
-          <h2 className="text-lg font-bold text-white uppercase tracking-[0.2em] flex items-center gap-2">
-            <Music size={18} className="text-royal-gold" /> Playlists
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {playlists.map((pl) => (
-              <div key={pl.id} className="bg-graphite border border-white/5 p-5 rounded-sm">
-                <h3 className="font-bold text-white">{pl.name}</h3>
-                <p className="text-xs text-white/50 mt-1">{pl.tracks?.length || 0} faixas</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Adicionar Faixa Autorizada">
-        <form onSubmit={handleAddTrack} className="space-y-4">
-          <input
-            required
-            placeholder="Título da música"
-            value={form.title}
-            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-            className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-sm text-white"
-          />
-          <input
-            required
-            placeholder="Artista"
-            value={form.artist}
-            onChange={(e) => setForm((f) => ({ ...f, artist: e.target.value }))}
-            className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-sm text-white"
-          />
-          <div className="bg-obsidian border border-white/10 rounded-sm p-3">
-            <label className="block text-xs font-bold text-white/70 mb-2">
-              Fonte da faixa
-            </label>
-            <div className="flex gap-2">
-              <label className="flex items-center gap-2 cursor-pointer text-xs text-white/60 hover:text-white">
-                <input
-                  type="radio"
-                  name="sourceType"
-                  value="AUDIO"
-                  checked={form.sourceType === 'AUDIO'}
-                  onChange={() =>
-                    setForm((f) => ({ ...f, sourceType: 'AUDIO', audioInputMode: 'URL' }))
-                  }
-                  className="text-royal-gold"
-                />
-                Áudio direto
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer text-xs text-white/60 hover:text-white">
-                <input
-                  type="radio"
-                  name="sourceType"
-                  value="YOUTUBE"
-                  checked={form.sourceType === 'YOUTUBE'}
-                  onChange={() => setForm((f) => ({ ...f, sourceType: 'YOUTUBE' }))}
-                  className="text-royal-gold"
-                />
-                YouTube
-              </label>
+          {tracks.length === 0 ? (
+            <div className="p-12 bg-graphite/40 border border-white/5 rounded-sm text-center text-sm text-white/40">
+              Nenhuma faixa autorizada na rádio ainda.
             </div>
-          </div>
-          {form.sourceType === 'AUDIO' ? (
-            <>
-              <div className="bg-obsidian border border-white/10 rounded-sm p-3">
-                <label className="block text-xs font-bold text-white/70 mb-2">
-                  Como deseja adicionar o áudio?
-                </label>
-                <div className="flex gap-2">
-                  <label className="flex items-center gap-2 cursor-pointer text-xs text-white/60 hover:text-white flex-1">
-                    <input
-                      type="radio"
-                      name="audioInputMode"
-                      value="URL"
-                      checked={form.audioInputMode === 'URL'}
-                      onChange={() =>
-                        setForm((f) => ({ ...f, audioInputMode: 'URL' }))
-                      }
-                      className="text-royal-gold"
-                    />
-                    URL direta
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer text-xs text-white/60 hover:text-white flex-1">
-                    <input
-                      type="radio"
-                      name="audioInputMode"
-                      value="FILE"
-                      checked={form.audioInputMode === 'FILE'}
-                      onChange={() =>
-                        setForm((f) => ({ ...f, audioInputMode: 'FILE' }))
-                      }
-                      className="text-royal-gold"
-                    />
-                    Importar do dispositivo
-                  </label>
-                </div>
-              </div>
-
-              {form.audioInputMode === 'URL' ? (
-                <input
-                  required
-                  type="url"
-                  placeholder="URL direta do áudio (.mp3 / .ogg / stream autorizado)"
-                  value={form.url}
-                  onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
-                  className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-xs text-white"
-                />
-              ) : (
-                <div className="space-y-2">
+          ) : (
+            <div className="space-y-2">
+              {tracks.map((track) => {
+                const isCurrent = currentTrack?.id === track.id;
+                const isFav = favorites.includes(track.id);
+                return (
                   <div
-                    onClick={() => fileInputRef.current?.click()}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const f = e.dataTransfer.files?.[0];
-                      if (f) setAudioFile(f);
-                    }}
-                    className="border border-dashed border-royal-gold/40 hover:border-royal-gold bg-obsidian/70 rounded-sm p-6 text-center cursor-pointer transition-all"
+                    key={track.id}
+                    className={`p-4 rounded-sm border flex items-center justify-between gap-4 ${
+                      isCurrent ? 'bg-graphite border-royal-gold/40' : 'bg-graphite/60 border-white/5'
+                    }`}
                   >
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="audio/mpeg,audio/ogg,audio/wav,audio/mp4,audio/aac,.mp3,.ogg,.wav,.m4a,.aac"
-                      className="hidden"
-                      onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
-                    />
-                    <Upload size={26} className="mx-auto text-royal-gold mb-2" />
-                    {audioFile ? (
-                      <div>
-                        <p className="text-sm font-bold text-honey">{audioFile.name}</p>
-                        <p className="text-xs text-white/50 mt-1">
-                          {formatFileSize(audioFile.size)} • Clique para trocar
-                        </p>
-                        <p className="text-[10px] text-white/40 mt-1">
-                          {audioMimeToExt(audioFile.type || 'audio/mpeg')} • Máx. {MAX_AUDIO_MB}MB
-                        </p>
-                      </div>
-                    ) : (
-                      <div>
-                        <p className="text-sm font-medium text-white/80">
-                          Clique ou arraste uma música do celular ou computador
-                        </p>
-                        <p className="text-[11px] text-white/45 mt-1">
-                          Suportado: MP3, OGG, WAV, M4A, AAC (máx. {MAX_AUDIO_MB}MB)
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {audioSubmitting && audioUploadProgress > 0 && (
-                    <div className="space-y-1">
-                      <div className="w-full h-2 bg-obsidian rounded-full overflow-hidden border border-white/10">
-                        <div
-                          className="h-full bg-royal-gold transition-all duration-300"
-                          style={{ width: `${audioUploadProgress}%` }}
-                        />
-                      </div>
-                      <p className="text-[11px] text-royal-gold text-right font-bold">
-                        Importando áudio: {audioUploadProgress}%
-                      </p>
-                    </div>
-                  )}
-
-                  {form.audioInputMode === 'FILE' && audioFile && !audioSubmitting && (
-                    <div className="flex items-center gap-3 p-3 bg-royal-gold/10 border border-royal-gold/20 rounded-sm">
-                      <File size={16} className="text-royal-gold" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-white truncate">
-                          {audioFile.name}
-                        </p>
-                        <p className="text-[10px] text-white/50 truncate">
-                          {formatFileSize(audioFile.size)}
-                        </p>
-                      </div>
+                    <div className="flex items-center gap-4 min-w-0">
                       <button
                         type="button"
-                        onClick={() => {
-                          setAudioFile(null);
-                          if (fileInputRef.current) fileInputRef.current.value = '';
-                        }}
-                        className="p-1 text-white/40 hover:text-red-400"
+                        onClick={() => (isCurrent ? togglePlay() : playTrack(track))}
+                        className="w-10 h-10 rounded-full bg-royal-gold text-obsidian flex items-center justify-center shrink-0"
                       >
-                        <Trash2 size={14} />
+                        {isCurrent && isPlaying ? <Pause size={16} /> : <Play size={16} />}
+                      </button>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-white truncate">{track.title}</p>
+                        <p className="text-xs text-white/50 truncate">{track.artist}</p>
+                        <p className="text-[10px] text-white/40 truncate">
+                          Por: {track.author?.name || 'Desconhecido'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleFavorite(track.id)}
+                        className={isFav ? 'text-red-400' : 'text-white/40 hover:text-red-400'}
+                      >
+                        <Heart size={16} className={isFav ? 'fill-red-400' : ''} />
                       </button>
                     </div>
-                  )}
-                </div>
-              )}
-            </>
-          ) : (
-            <input
-              required
-              type="url"
-              placeholder="URL do YouTube (youtube.com/watch?v=..., youtu.be/...)"
-              value={form.youtubeUrl}
-              onChange={(e) => setForm((f) => ({ ...f, youtubeUrl: e.target.value }))}
-              className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-xs text-white"
-            />
+                  </div>
+                );
+              })}
+            </div>
           )}
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={audioSubmitting}>
-              {audioSubmitting ? 'Importando...' : 'Salvar Faixa'}
-            </Button>
+        </div>
+      ) : tab === 'pedidos' ? (
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold text-white uppercase tracking-[0.2em] flex items-center gap-2">
+            <List size={18} className="text-royal-gold" /> Meus Pedidos
+          </h2>
+          {myRequests.length === 0 ? (
+            <div className="p-12 bg-graphite/40 border border-white/5 rounded-sm text-center text-sm text-white/40">
+              Nenhum pedido enviado ainda.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {myRequests.map((req) => {
+                const { label, color } = formatStatus(req.status || 'SOLICITADA');
+                return (
+                  <div
+                    key={req.id}
+                    className="p-4 rounded-sm border bg-graphite/60 border-white/5 flex flex-wrap items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-white truncate">{req.title}</p>
+                      <p className="text-white/50 truncate">{req.artist}</p>
+                      {req.referenceUrl && (
+                        <a
+                          href={String(req.referenceUrl)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[10px] text-royal-gold/70 truncate block"
+                        >
+                          {String(req.referenceUrl)}
+                        </a>
+                      )}
+                      {req.status === 'RECUSADA' && req.rejectionReason && (
+                        <p className="text-[10px] text-red-400 mt-1">Motivo: {String(req.rejectionReason)}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${color}`}>
+                        {label}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="mt-6">
+            <Button onClick={() => setModalOpen(true)}>Novo Pedido de Música</Button>
           </div>
-        </form>
-      </Modal>
+        </div>
+      ) : tab === 'playlist' ? (
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold text-white uppercase tracking-[0.2em] flex items-center gap-2">
+            <Music size={18} className="text-royal-gold" /> Minha Playlist
+          </h2>
+          {!myPlaylist ? (
+            <div className="p-12 bg-graphite/40 border border-white/5 rounded-sm text-center text-sm text-white/40">
+              Nenhuma playlist encontrada.
+            </div>
+          ) : myPlaylist?.tracks?.length === 0 ? (
+            <div className="p-12 bg-graphite/40 border border-white/5 rounded-sm text-center text-sm text-white/40">
+              Sua playlist está vazia. Aguarde a Staff adicionar suas músicas aprovadas.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {myPlaylist.tracks.map((pt: any) => {
+                const t = pt.track;
+                return (
+                  <div
+                    key={t.id}
+                    className="p-4 rounded-sm border bg-graphite/60 border-white/5 flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => playTrack(t as RadioTrackItem)}
+                        className="w-8 h-8 rounded-full bg-royal-gold text-obsidian flex items-center justify-center shrink-0"
+                      >
+                        <Play size={14} />
+                      </button>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-white truncate">{t.title}</p>
+                        <p className="text-xs text-white/50 truncate">{t.artist}</p>
+                      </div>
+                    </div>
+                    <div className="text-xs text-white/40">{pt.order}°</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

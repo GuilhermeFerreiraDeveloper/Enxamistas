@@ -241,7 +241,7 @@ export class InstitutionalController {
     }
   }
 
-  // Radio
+  // Radio: Sistema de Pedidos de Músicas
   async getRadio(_req: Request, res: Response, next: NextFunction) {
     try {
       res.status(200).json(await service.getRadioData());
@@ -250,116 +250,81 @@ export class InstitutionalController {
     }
   }
 
-  async addRadioTrack(req: any, res: Response, next: NextFunction) {
+  async createRadioRequest(req: any, res: Response, next: NextFunction) {
     try {
       res.status(201).json(
-        await service.addRadioTrack(req.body, req.user.profile.id, req.user.id)
+        await service.createRadioRequest(req.body, req.user.profile.id, req.user.id)
       );
     } catch (error) {
       next(error);
     }
   }
 
-  async createRadioPlaylist(req: any, res: Response, next: NextFunction) {
+  async getMyRadioRequests(req: any, res: Response, next: NextFunction) {
     try {
-      if (!req.body.name) throw new AppError('Nome da playlist obrigatório.', 400, 'NAME_REQUIRED');
-      res.status(201).json(
-        await service.createRadioPlaylist(req.body.name, req.body.description, req.user.id)
+      res.status(200).json(await service.getMyRadioRequests(req.user.profile.id));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getMyRadioPlaylist(req: any, res: Response, next: NextFunction) {
+    try {
+      res.status(200).json(await service.getMyRadioPlaylist(req.user.profile.id));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async listAllRadioRequests(req: any, res: Response, next: NextFunction) {
+    try {
+      res.status(200).json(await service.listAllRadioRequests());
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateRadioRequestStatus(req: any, res: Response, next: NextFunction) {
+    try {
+      const { status, rejectionReason, filePath } = req.body;
+      const validStatuses = ['SOLICITADA', 'EM_ANALISE', 'ADICIONADA_PLAYLIST', 'RECUSADA'];
+      if (!validStatuses.includes(status)) {
+        throw new AppError('Status inválido.', 400, 'INVALID_STATUS');
+      }
+      res.status(200).json(
+        await service.updateRadioRequestStatus(
+          req.params.id,
+          status,
+          req.user.profile.id,
+          req.user.id,
+          rejectionReason,
+          filePath
+        )
       );
     } catch (error) {
       next(error);
     }
   }
 
-  async deleteRadioTrack(req: any, res: Response, next: NextFunction) {
+  async deleteRadioRequest(req: any, res: Response, next: NextFunction) {
     try {
-      await service.deleteRadioTrack(req.params.id, req.user.id);
+      await service.deleteRadioRequest(req.params.id, req.user.id);
       res.status(204).send();
     } catch (error) {
       next(error);
     }
   }
 
-  // --- Moderação de faixas de rádio ---
-  async listPendingRadioTracks(req: any, res: Response, next: NextFunction) {
+  // Stream de arquivo .mp3 da pasta musicas/PASSAPORTE/
+  async streamRadioFile(req: Request, res: Response, next: NextFunction) {
     try {
-      const tracks = await service.listPendingRadioTracks();
-      res.status(200).json(tracks);
-    } catch (error) {
-      next(error);
-    }
-  }
+      const { passport, filename } = req.params;
+      const filePath = await service.getAuthorizedRadioFile(passport, filename);
+      const fs = require('fs');
 
-  async approveRadioTrack(req: any, res: Response, next: NextFunction) {
-    try {
-      const track = await service.approveRadioTrack(req.params.id, req.user.id);
-      res.status(200).json(track);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  async rejectRadioTrack(req: any, res: Response, next: NextFunction) {
-    try {
-      const track = await service.rejectRadioTrack(req.params.id, req.user.id);
-      res.status(200).json(track);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // --- Importação de áudio do dispositivo (celular/PC) ---
-  async uploadRadioAudio(req: any, res: Response, next: NextFunction) {
-    try {
-      if (!req.user?.profile?.id) {
-        throw new AppError('Perfil do usuário não encontrado.', 403, 'PROFILE_REQUIRED');
-      }
-      if (!Buffer.isBuffer(req.body)) {
-        throw new AppError(
-          'Envie o arquivo de áudio binário com Content-Type adequado.',
-          400,
-          'INVALID_UPLOAD'
-        );
-      }
-
-      const mimeType = String(req.headers['content-type'] || '').split(';')[0].trim();
-      const title = decodeHeaderValue(req.headers['x-radio-title']);
-      const artist = decodeHeaderValue(req.headers['x-radio-artist']);
-      const durationHeader = decodeHeaderValue(req.headers['x-radio-duration']);
-      const duration = durationHeader ? parseInt(durationHeader, 10) : undefined;
-
-      const created = await service.uploadRadioAudio({
-        authorProfileId: req.user.profile.id,
-        actorUserId: req.user.id,
-        title,
-        artist,
-        duration,
-        mimeType,
-        buffer: req.body,
-      });
-
-      res.status(201).json(created);
-    } catch (error) {
-      next(error);
-    }
-  }
-
-  // --- Stream de áudio armazenado (com suporte a range/seek) ---
-  async streamRadioAudio(req: Request, res: Response, next: NextFunction) {
-    try {
-      const item = await service.getRadioAudioStreamFile(req.params.id);
-
-      if (item.url && item.url.startsWith('http') && !item.fileData) {
-        return res.redirect(item.url);
-      }
-
-      if (!item.fileData) {
-        throw new AppError('Áudio indisponível no momento.', 404, 'AUDIO_UNAVAILABLE');
-      }
-
-      const buffer = Buffer.from(item.fileData);
-      const totalSize = buffer.length;
-      const mimeType = item.mimeType || 'audio/mpeg';
+      const stat = fs.statSync(filePath);
+      const totalSize = stat.size;
+      const mimeType = 'audio/mpeg';
       const range = req.headers.range;
 
       if (range) {
@@ -374,7 +339,7 @@ export class InstitutionalController {
           return res.status(416).setHeader('Content-Range', `bytes */${totalSize}`).end();
         }
 
-        const chunk = buffer.subarray(start, end + 1);
+        const chunk = fs.readFileSync(filePath, { start, end: end + 1 });
         res.status(206);
         res.setHeader('Content-Range', `bytes ${start}-${end}/${totalSize}`);
         res.setHeader('Accept-Ranges', 'bytes');
@@ -389,7 +354,7 @@ export class InstitutionalController {
       res.setHeader('Accept-Ranges', 'bytes');
       res.setHeader('Content-Type', mimeType);
       res.setHeader('Cache-Control', 'public, max-age=3600');
-      return res.send(buffer);
+      return res.sendFile(filePath);
     } catch (error) {
       next(error);
     }

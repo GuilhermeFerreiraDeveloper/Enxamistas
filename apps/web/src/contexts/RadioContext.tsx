@@ -6,11 +6,13 @@ export interface RadioTrackItem {
   id: string;
   title: string;
   artist: string;
-  sourceType: 'AUDIO' | 'YOUTUBE';
+  passport?: string | null;
+  filePath?: string | null;
+  status?: string | null;
+  referenceUrl?: string | null;
+  rejectionReason?: string | null;
   url?: string | null;
-  youtubeId?: string | null;
-  youtubeUrl?: string | null;
-  duration?: number | null;
+  author?: { id: string; name: string; avatar?: string | null } | null;
 }
 
 interface RadioContextType {
@@ -30,20 +32,21 @@ interface RadioContextType {
   setVolume: (v: number) => void;
   seekTo: (sec: number) => void;
   toggleFavorite: (trackId: string) => void;
-  isYoutube: boolean;
   shuffle: boolean;
   toggleShuffle: () => void;
   loop: boolean;
   toggleLoop: () => void;
   isLoaded: boolean;
+  myRequests: RadioTrackItem[];
+  setMyRequests: (requests: RadioTrackItem[]) => void;
+  myPlaylist: any;
+  setMyPlaylist: (playlist: any) => void;
 }
 
 const RadioContext = createContext<RadioContextType>({} as RadioContextType);
 
 export function RadioProvider({ children }: { children: React.ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const youtubePlayerRef = useRef<any>(null);
-  const [youtubeApiReady, setYoutubeApiReady] = useState(false);
   const [tracks, setTracks] = useState<RadioTrackItem[]>([]);
   const [currentTrack, setCurrentTrack] = useState<RadioTrackItem | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -55,6 +58,8 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   const [shuffle, setShuffle] = useState(false);
   const [loop, setLoop] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [myRequests, setMyRequests] = useState<RadioTrackItem[]>([]);
+  const [myPlaylist, setMyPlaylist] = useState<any>(null);
 
   useEffect(() => {
     try {
@@ -96,92 +101,6 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
     };
   }, [volume]);
 
-  useEffect(() => {
-    const tag = document.createElement('script');
-    tag.src = 'https://www.youtube.com/iframe_api';
-    const firstScriptTag = document.getElementsByTagName('script')[0];
-    if (firstScriptTag) {
-      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
-    }
-
-    (window as any).onYouTubeIframeAPIReady = () => {
-      setYoutubeApiReady(true);
-    };
-
-    return () => {
-      delete (window as any).onYouTubeIframeAPIReady;
-    };
-  }, []);
-
-  // Cria o player do YouTube uma única vez (iframe sempre montado, oculto)
-  useEffect(() => {
-    if (!youtubeApiReady || typeof window === 'undefined' || !(window as any).YT) return;
-
-    const player = new (window as any).YT.Player('youtube-radio-player', {
-      height: '0',
-      width: '0',
-      videoId: '',
-      playerVars: {
-        autoplay: 0,
-        controls: 0,
-        rel: 0,
-        showinfo: 0,
-        modestbranding: 1,
-      },
-      events: {
-        onReady: (event: any) => {
-          youtubePlayerRef.current = event.target;
-          // Se já há uma track do YouTube ativa e tocando, inicia
-          if (currentTrack?.sourceType === 'YOUTUBE' && currentTrack?.youtubeId && isPlaying) {
-            event.target.cueVideoById(currentTrack.youtubeId);
-            event.target.playVideo();
-            event.target.setVolume(volume * 100);
-          }
-        },
-        onStateChange: (event: any) => {
-          const state = event.data;
-          if (state === (window as any).YT.PlayerState.PLAYING) {
-            setIsPlaying(true);
-            setAudioError(null);
-          } else if (state === (window as any).YT.PlayerState.ENDED) {
-            setIsPlaying(false);
-            handleAutoNext();
-          } else if (state === (window as any).YT.PlayerState.PAUSED) {
-            setIsPlaying(false);
-          }
-        },
-        onError: () => {
-          setIsPlaying(false);
-          setAudioError('Não foi possível reproduzir este vídeo do YouTube.');
-          handleAutoNext();
-        },
-      },
-    });
-
-    return () => {
-      try {
-        player.destroy();
-      } catch {
-        // Ignore
-      }
-      youtubePlayerRef.current = null;
-    };
-  }, [youtubeApiReady, volume]);
-
-  // Quando muda a track do YouTube, toca no player existente
-  useEffect(() => {
-    if (!youtubePlayerRef.current) return;
-    if (currentTrack?.sourceType === 'YOUTUBE' && currentTrack?.youtubeId) {
-      const player = youtubePlayerRef.current;
-      player.cueVideoById(currentTrack.youtubeId);
-      player.playVideo();
-      player.setVolume(volume * 100);
-      setIsPlaying(true);
-      setProgress(0);
-      setDuration(0);
-    }
-  }, [currentTrack, volume]);
-
   const handleAutoNext = () => {
     if (!tracks.length) return;
     if (loop) {
@@ -222,69 +141,45 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
     setAudioError(null);
     setCurrentTrack(track);
 
-    if (track.sourceType === 'YOUTUBE' && track.youtubeId) {
-      const player = youtubePlayerRef.current;
-      if (player) {
-        player.cueVideoById(track.youtubeId);
-        player.playVideo();
-        player.setVolume(volume * 100);
-      }
-      setIsPlaying(true);
-      setProgress(0);
-      setDuration(0);
+    if (track.filePath && track.passport) {
+      const audio = audioRef.current;
+      if (!audio) return;
+      const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(/\/api(\/v1)?\/?$/, '');
+      const streamUrl = `${apiBase}/radio/stream/${track.passport}/${encodeURIComponent(track.filePath)}`;
+      audio.crossOrigin = 'use-credentials';
+      audio.src = streamUrl;
+      audio.play().then(() => setIsPlaying(true)).catch(() => {
+        setIsPlaying(false);
+        setAudioError('Fonte de áudio indisponível.');
+      });
       return;
     }
 
     const audio = audioRef.current;
     if (!audio) return;
-    // Resolve relative /api/... URLs to the API origin (e.g. Render) so
-    // cross-origin audio streaming works when frontend (Vercel) != API (Render).
-    const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(
-      /\/api(\/v1)?\/?$/,
-      ''
-    );
+    const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(/\/api(\/v1)?\/?$/, '');
     const resolvedUrl = track.url?.startsWith('/api/') ? `${apiBase}${track.url}` : track.url;
     audio.crossOrigin = 'use-credentials';
     audio.src = resolvedUrl || '';
-    audio
-      .play()
-      .then(() => setIsPlaying(true))
-      .catch(() => {
-        setIsPlaying(false);
-        setAudioError('Reprodução bloqueada ou fonte de áudio indisponível.');
-      });
+    audio.play().then(() => setIsPlaying(true)).catch(() => {
+      setIsPlaying(false);
+      setAudioError('Fonte de áudio indisponível.');
+    });
   };
 
   const togglePlay = () => {
     if (!currentTrack) return;
     setAudioError(null);
-
-    if (currentTrack.sourceType === 'YOUTUBE') {
-      const player = youtubePlayerRef.current;
-      if (!player) return;
-      if (isPlaying) {
-        player.pauseVideo();
-        setIsPlaying(false);
-      } else {
-        player.playVideo();
-        setIsPlaying(true);
-      }
-      return;
-    }
-
     const audio = audioRef.current;
     if (!audio) return;
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
     } else {
-      audio
-        .play()
-        .then(() => setIsPlaying(true))
-        .catch(() => {
-          setIsPlaying(false);
-          setAudioError('Falha ao retomar reprodução de áudio.');
-        });
+      audio.play().then(() => setIsPlaying(true)).catch(() => {
+        setIsPlaying(false);
+        setAudioError('Falha ao retomar reprodução.');
+      });
     }
   };
 
@@ -306,12 +201,10 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
     const clamped = Math.min(1, Math.max(0, v));
     setVolumeState(clamped);
     if (audioRef.current) audioRef.current.volume = clamped;
-    const player = youtubePlayerRef.current;
-    if (player) player.setVolume(clamped * 100);
   };
 
   const seekTo = (sec: number) => {
-    if (audioRef.current && Number.isFinite(sec) && currentTrack?.sourceType === 'AUDIO') {
+    if (audioRef.current && Number.isFinite(sec)) {
       audioRef.current.currentTime = sec;
       setProgress(sec);
     }
@@ -320,11 +213,7 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   const toggleFavorite = (trackId: string) => {
     setFavorites((prev) => {
       const next = prev.includes(trackId) ? prev.filter((id) => id !== trackId) : [...prev, trackId];
-      try {
-        localStorage.setItem('enxamistas_radio_favorites', JSON.stringify(next));
-      } catch {
-        // Ignore
-      }
+      try { localStorage.setItem('enxamistas_radio_favorites', JSON.stringify(next)); } catch {}
       return next;
     });
   };
@@ -332,44 +221,14 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   const toggleShuffle = () => setShuffle((prev) => !prev);
   const toggleLoop = () => setLoop((prev) => !prev);
 
-  const isYoutube = currentTrack?.sourceType === 'YOUTUBE';
-
   return (
-    <RadioContext.Provider
-      value={{
-        tracks,
-        setTracks,
-        currentTrack,
-        isPlaying,
-        volume,
-        progress,
-        duration,
-        audioError,
-        favorites,
-        playTrack,
-        togglePlay,
-        nextTrack,
-        prevTrack,
-        setVolume,
-        seekTo,
-        toggleFavorite,
-        isYoutube,
-        shuffle,
-        toggleShuffle,
-        loop,
-        toggleLoop,
-        isLoaded,
-      }}
-    >
+    <RadioContext.Provider value={{
+      tracks, setTracks, currentTrack, isPlaying, volume, progress, duration,
+      audioError, favorites, playTrack, togglePlay, nextTrack, prevTrack, setVolume,
+      seekTo, toggleFavorite, shuffle, toggleShuffle, loop, toggleLoop, isLoaded,
+      myRequests, setMyRequests, myPlaylist, setMyPlaylist,
+    }}>
       {children}
-      {/* Iframe do YouTube sempre montado (oculto) para evitar problemas de criação/destruição do player */}
-      <iframe
-        id="youtube-radio-player"
-        title="YouTube Radio Player"
-        src="https://www.youtube.com/embed/"
-        style={{ display: 'none', width: 0, height: 0 }}
-        sandbox="allow-same-origin allow-scripts"
-      />
     </RadioContext.Provider>
   );
 }

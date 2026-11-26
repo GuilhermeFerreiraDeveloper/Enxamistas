@@ -11,6 +11,7 @@ const { EventService } = require('../dist/services/event.service.js');
 const { ChatService } = require('../dist/services/chat.service.js');
 const { StorageService } = require('../dist/services/storage.service.js');
 const { CinematicService, extractYoutubeId } = require('../dist/services/cinematic.service.js');
+const { InstitutionalService } = require('../dist/services/institutional.service.js');
 const { roleMiddleware } = require('../dist/middlewares/role.middleware.js');
 
 describe('Enxamistas Critical Suite', () => {
@@ -19,6 +20,7 @@ describe('Enxamistas Critical Suite', () => {
   const academicService = new AcademicService();
   const eventService = new EventService();
   const chatService = new ChatService();
+  const institutionalService = new InstitutionalService();
 
   beforeEach(() => {
     prisma.auditLog.create = async () => ({ id: 'audit-1' });
@@ -223,6 +225,70 @@ describe('Enxamistas Critical Suite', () => {
         }),
       /Armazenamento externo S3 não configurado/
     );
+  });
+
+  it('Radio request service binds the authenticated profile/passport and rejects invalid URLs', async () => {
+    prisma.profile.findUnique = async () => ({
+      id: 'profile-1',
+      user: { passport: '123456' },
+    });
+    prisma.radioPlaylist.findUnique = async () => ({ id: 'playlist-1', profileId: 'profile-1' });
+    let created = null;
+    prisma.radioTrack.create = async (args) => {
+      created = args.data;
+      return { id: 'track-1', ...args.data };
+    };
+
+    await institutionalService.createRadioRequest(
+      { title: 'Musica Teste', artist: 'Artista Teste', referenceUrl: 'https://music.example.com/song' },
+      'profile-1',
+      'user-1'
+    );
+
+    assert.equal(created.authorId, 'profile-1');
+    assert.equal(created.passport, '123456');
+    assert.equal(created.status, 'SOLICITADA');
+
+    await assert.rejects(
+      () => institutionalService.createRadioRequest(
+        { title: 'Musica Teste', artist: 'Artista Teste', referenceUrl: 'ftp://example.com/song' },
+        'profile-1',
+        'user-1'
+      ),
+      /URL válida/
+    );
+  });
+
+  it('Radio request review requires a rejection reason and staff review identity', async () => {
+    prisma.radioTrack.findUnique = async () => ({
+      id: 'track-1',
+      passport: '123456',
+      authorId: 'profile-1',
+      author: { user: { passport: '123456' } },
+      title: 'Musica Teste',
+    });
+
+    await assert.rejects(
+      () => institutionalService.updateRadioRequestStatus(
+        'track-1', 'RECUSADA', 'staff-profile', 'staff-user', ''
+      ),
+      /motivo da recusa/
+    );
+
+    let updated = null;
+    prisma.radioTrack.update = async (args) => {
+      updated = args.data;
+      return { id: 'track-1', authorId: 'profile-1', title: 'Musica Teste', ...args.data };
+    };
+    prisma.radioPlaylist.findUnique = async () => ({ id: 'playlist-1', profileId: 'profile-1' });
+    prisma.radioPlaylistTrack.deleteMany = async () => ({ count: 1 });
+
+    await institutionalService.updateRadioRequestStatus(
+      'track-1', 'RECUSADA', 'staff-profile', 'staff-user', 'Licença não autorizada'
+    );
+
+    assert.equal(updated.reviewedById, 'staff-profile');
+    assert.equal(updated.rejectionReason, 'Licença não autorizada');
   });
 
   it('CinematicService validates YouTube links, video signatures, and 20 fraternity rules', async () => {

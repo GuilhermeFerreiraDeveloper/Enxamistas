@@ -99,61 +99,49 @@ router.post(
   controller.createHighlight
 );
 
-// Radio
+// Radio: Sistema de Pedidos de Músicas
 router.get('/radio', authMiddleware, controller.getRadio);
 router.post(
-  '/radio/tracks',
+  '/radio/requests',
   authMiddleware,
-  permissionMiddleware('radio.manage', UserRole.ABELHA_PRINCESA),
-  controller.addRadioTrack
+  controller.createRadioRequest
 );
-router.post(
-  '/radio/playlists',
+router.get(
+  '/radio/my-requests',
+  authMiddleware,
+  controller.getMyRadioRequests
+);
+router.get(
+  '/radio/my-playlist',
+  authMiddleware,
+  controller.getMyRadioPlaylist
+);
+
+// Moderação de pedidos de rádio (apenas Staff e Liderança)
+router.get(
+  '/radio/requests',
   authMiddleware,
   permissionMiddleware('radio.manage', UserRole.ABELHA_PRINCESA),
-  controller.createRadioPlaylist
+  controller.listAllRadioRequests
+);
+router.put(
+  '/radio/requests/:id/status',
+  authMiddleware,
+  permissionMiddleware('radio.manage', UserRole.ABELHA_PRINCESA),
+  controller.updateRadioRequestStatus
 );
 router.delete(
-  '/radio/tracks/:id',
+  '/radio/requests/:id',
   authMiddleware,
   permissionMiddleware('radio.manage', UserRole.ABELHA_PRINCESA),
-  controller.deleteRadioTrack
+  controller.deleteRadioRequest
 );
 
-// Moderação de faixas de rádio (apenas Staff e Liderança)
+// Stream de arquivo .mp3 da pasta musicas/PASSAPORTE/
 router.get(
-  '/radio/pending',
+  '/radio/stream/:passport/:filename',
   authMiddleware,
-  permissionMiddleware('radio.manage', UserRole.ABELHA_PRINCESA),
-  controller.listPendingRadioTracks
+  controller.streamRadioFile
 );
-router.put(
-  '/radio/tracks/:id/approve',
-  authMiddleware,
-  permissionMiddleware('radio.manage', UserRole.ABELHA_PRINCESA),
-  controller.approveRadioTrack
-);
-router.put(
-  '/radio/tracks/:id/reject',
-  authMiddleware,
-  permissionMiddleware('radio.manage', UserRole.ABELHA_PRINCESA),
-  controller.rejectRadioTrack
-);
-
-// Importar áudio do dispositivo (celular/PC) para a rádio
-router.post(
-  '/radio/uploads/audio',
-  authMiddleware,
-  permissionMiddleware('radio.manage', UserRole.ABELHA_PRINCESA),
-  rateLimit({ windowMs: 60_000, max: 10, keyPrefix: 'radio_upload' }),
-  express.raw({
-    type: ['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/mp4', 'audio/aac', 'audio/*'],
-    limit: '16mb',
-  }),
-  controller.uploadRadioAudio
-);
-
-// Stream de áudio armazenado (com suporte a range/seek)
-router.get('/radio/audio/:id/stream', authMiddleware, controller.streamRadioAudio);
 
 export default router;
