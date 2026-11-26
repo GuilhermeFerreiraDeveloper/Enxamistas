@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
 import {
   announcementSchema,
@@ -6,14 +7,17 @@ import {
   mansionKeyRequestSchema,
   monthlyHighlightSchema,
   projectSchema,
+  radioAudioMetadataSchema,
   radioTrackSchema,
   RoleHierarchy,
   UserRole,
+  AUDIO_MIME_TYPES,
 } from '@enxamistas/shared';
 import { AppError } from '../errors/AppError';
 import { AuditService } from './audit.service';
 import { NotificationService } from './notification.service';
 import { MedalService } from './medal.service';
+import { storageService } from './storage.service';
 
 const notificationService = new NotificationService();
 const medalService = new MedalService();
@@ -493,7 +497,11 @@ export class InstitutionalService {
     return { tracks, playlists };
   }
 
-  async addRadioTrack(rawData: any, actorUserId: string) {
+  async addRadioTrack(
+    rawData: any,
+    actorProfileId: string,
+    actorUserId: string
+  ) {
     const data = radioTrackSchema.parse(rawData);
 
     let sourceType = data.sourceType || 'AUDIO';
@@ -526,6 +534,7 @@ export class InstitutionalService {
         youtubeUrl,
         coverUrl: data.coverUrl || null,
         duration: data.duration || null,
+        authorId: actorProfileId,
       },
     });
 
@@ -551,5 +560,173 @@ export class InstitutionalService {
   async deleteRadioTrack(id: string, actorUserId: string) {
     await prisma.radioTrack.delete({ where: { id } });
     await AuditService.log(actorUserId, 'RADIO_DELETE_TRACK', 'RadioTrack', { id });
+  }
+
+  // --- ÁUDIO ENVIADO DO DISPOSITIVO ---
+
+  private validateAudioMagicBytes(mimeType: string, buffer: Buffer) {
+    if (!buffer || buffer.length < 4) {
+      throw new AppError('Áudio inválido ou corrompido.', 400, 'INVALID_AUDIO');
+    }
+
+    if (mimeType === 'audio/mpeg') {
+      const isId3 = buffer.subarray(0, 3).toString('ascii') === 'ID3';
+      const isMpegSync = buffer[0] === 0xff && (buffer[1] & 0xf0) === 0xf0;
+      if (!isId3 && !isMpegSync) {
+        throw new AppError(
+          'Conteúdo do arquivo não corresponde a um MP3 válido.',
+          400,
+          'INVALID_SIGNATURE'
+        );
+      }
+    } else if (mimeType === 'audio/ogg') {
+      if (buffer.subarray(0, 4).toString('ascii') !== 'OggS') {
+        throw new AppError(
+          'Conteúdo do arquivo não corresponde a um OGG válido.',
+          400,
+          'INVALID_SIGNATURE'
+        );
+      }
+    } else if (mimeType === 'audio/wav' || mimeType === 'audio/x-wav') {
+      if (buffer.subarray(0, 4).toString('ascii') !== 'RIFF') {
+        throw new AppError(
+          'Conteúdo do arquivo não corresponde a um WAV válido.',
+          400,
+          'INVALID_SIGNATURE'
+        );
+      }
+    } else if (mimeType === 'audio/mp4' || mimeType === 'audio/aac') {
+      const boxType = buffer.length >= 8 ? buffer.subarray(4, 8).toString('ascii') : '';
+      if (!boxType.includes('ftyp')) {
+        const isAdts = buffer[0] === 0xff && (buffer[1] & 0xf6) === 0xf0;
+        if (!isAdts) {
+          throw new AppError(
+            'Conteúdo do arquivo não corresponde a um AAC/M4A válido.',
+            400,
+            'INVALID_SIGNATURE'
+          );
+        }
+      }
+    }
+  }
+
+  async uploadRadioAudio(params: {
+    authorProfileId: string;
+    actorUserId: string;
+    title: string;
+    artist: string;
+    coverUrl?: string;
+    duration?: number;
+    mimeType: string;
+    buffer: Buffer;
+  }) {
+    const ALLOWED_AUDIO_MIMES = [...AUDIO_MIME_TYPES];
+    const MAX_AUDIO_BYTES = 15 * 1024 * 1024;
+
+    const metadata = radioAudioMetadataSchema.parse({
+      title: params.title,
+      artist: params.artist,
+      coverUrl: params.coverUrl,
+      duration: params.duration,
+    });
+
+    if (!ALLOWED_AUDIO_MIMES.includes(params.mimeType as any)) {
+      throw new AppError(
+        `Formato de áudio não permitido (${params.mimeType}). Envie MP3, OGG, WAV, M4A ou AAC.`,
+        400,
+        'INVALID_FILE_TYPE'
+      );
+    }
+
+    const useS3 = storageService.isConfigured();
+    if (!params.buffer || params.buffer.length === 0) {
+      throw new AppError('Arquivo de áudio vazio.', 400, 'EMPTY_FILE');
+    }
+    if (params.buffer.length > MAX_AUDIO_BYTES) {
+      throw new AppError(
+        `O áudio excede o limite de ${Math.round(MAX_AUDIO_BYTES / (1024 * 1024))}MB. Para arquivos maiores, use o YouTube.`,
+        400,
+        'FILE_TOO_LARGE'
+      );
+    }
+
+    this.validateAudioMagicBytes(params.mimeType, params.buffer);
+
+    const id = crypto.randomUUID();
+    let audioUrl = `/api/radio/audio/${id}/stream`;
+    let fileData: Buffer | null = params.buffer;
+
+    if (useS3) {
+      const uploaded = await storageService.uploadBuffer({
+        scope: 'audios',
+        mimeType: params.mimeType,
+        buffer: params.buffer,
+        ownerId: params.authorProfileId,
+      });
+      audioUrl = uploaded.url;
+      fileData = null;
+    }
+
+    const created = await prisma.radioTrack.create({
+      data: {
+        id,
+        title: metadata.title,
+        artist: metadata.artist,
+        sourceType: 'AUDIO',
+        url: audioUrl,
+        youtubeId: null,
+        youtubeUrl: null,
+        coverUrl: metadata.coverUrl || null,
+        duration: metadata.duration || null,
+        mimeType: params.mimeType,
+        fileSize: params.buffer.length,
+        fileData,
+        authorId: params.authorProfileId,
+      },
+    });
+
+    await AuditService.log(params.actorUserId, 'RADIO_UPLOAD_AUDIO', 'RadioTrack', {
+      id: created.id,
+      title: created.title,
+      mimeType: params.mimeType,
+      fileSize: params.buffer.length,
+      storage: useS3 ? 's3' : 'database',
+    });
+
+    return {
+      id: created.id,
+      title: created.title,
+      artist: created.artist,
+      sourceType: created.sourceType,
+      url: created.url,
+      coverUrl: created.coverUrl,
+      duration: created.duration,
+      mimeType: created.mimeType,
+      fileSize: created.fileSize,
+      author: { id: created.authorId },
+    };
+  }
+
+  async getRadioAudioStreamFile(id: string) {
+    const item = await prisma.radioTrack.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        sourceType: true,
+        title: true,
+        mimeType: true,
+        url: true,
+        fileData: true,
+      },
+    });
+
+    if (!item) {
+      throw new AppError('Faixa de áudio não encontrada.', 404, 'AUDIO_NOT_FOUND');
+    }
+    if (item.sourceType !== 'AUDIO') {
+      throw new AppError('Este recurso não é um áudio.', 400, 'NOT_AN_AUDIO');
+    }
+
+    return item;
   }
 }

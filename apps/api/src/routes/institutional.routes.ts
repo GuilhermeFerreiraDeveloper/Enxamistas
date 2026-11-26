@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { InstitutionalController } from '../controllers/institutional.controller';
 import { authMiddleware, optionalAuthMiddleware } from '../middlewares/auth.middleware';
 import { permissionMiddleware } from '../middlewares/role.middleware';
@@ -119,5 +119,21 @@ router.delete(
   permissionMiddleware('radio.manage', UserRole.ABELHA_PRINCESA),
   controller.deleteRadioTrack
 );
+
+// Importar áudio do dispositivo (celular/PC) para a rádio
+router.post(
+  '/radio/uploads/audio',
+  authMiddleware,
+  permissionMiddleware('radio.manage', UserRole.ABELHA_PRINCESA),
+  rateLimit({ windowMs: 60_000, max: 10, keyPrefix: 'radio_upload' }),
+  express.raw({
+    type: ['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/mp4', 'audio/aac', 'audio/*'],
+    limit: '16mb',
+  }),
+  controller.uploadRadioAudio
+);
+
+// Stream de áudio armazenado (com suporte a range/seek)
+router.get('/radio/audio/:id/stream', authMiddleware, controller.streamRadioAudio);
 
 export default router;

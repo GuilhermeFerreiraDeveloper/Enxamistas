@@ -215,7 +215,15 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
 
     const audio = audioRef.current;
     if (!audio) return;
-    audio.src = track.url || '';
+    // Resolve relative /api/... URLs to the API origin (e.g. Render) so
+    // cross-origin audio streaming works when frontend (Vercel) != API (Render).
+    const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(
+      /\/api(\/v1)?\/?$/,
+      ''
+    );
+    const resolvedUrl = track.url?.startsWith('/api/') ? `${apiBase}${track.url}` : track.url;
+    audio.crossOrigin = 'use-credentials';
+    audio.src = resolvedUrl || '';
     audio
       .play()
       .then(() => setIsPlaying(true))

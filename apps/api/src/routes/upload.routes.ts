@@ -6,7 +6,16 @@ import { AppError } from '../errors/AppError';
 import { RoleHierarchy, UserRole } from '@enxamistas/shared';
 
 const router = Router();
-const VALID_SCOPES: UploadScope[] = ['avatars', 'feed', 'events', 'materials', 'proofs', 'gallery', 'projects'];
+const VALID_SCOPES: UploadScope[] = [
+  'avatars',
+  'feed',
+  'events',
+  'materials',
+  'proofs',
+  'gallery',
+  'projects',
+  'audios',
+];
 
 router.get('/status', authMiddleware, (_req, res) => {
   res.status(200).json(storageService.getStatus());

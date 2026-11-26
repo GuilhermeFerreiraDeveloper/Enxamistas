@@ -10,7 +10,8 @@ export type UploadScope =
   | 'proofs'
   | 'gallery'
   | 'projects'
-  | 'cinematics';
+  | 'cinematics'
+  | 'audios';
 
 const ALLOWED_MIME_TYPES: Record<UploadScope, string[]> = {
   avatars: ['image/jpeg', 'image/png', 'image/webp'],
@@ -21,6 +22,7 @@ const ALLOWED_MIME_TYPES: Record<UploadScope, string[]> = {
   gallery: ['image/jpeg', 'image/png', 'image/webp'],
   projects: ['image/jpeg', 'image/png', 'image/webp'],
   cinematics: ['video/mp4', 'video/webm', 'video/quicktime'],
+  audios: ['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/mp4', 'audio/aac'],
 };
 
 const MAX_BYTES: Record<UploadScope, number> = {
@@ -32,6 +34,7 @@ const MAX_BYTES: Record<UploadScope, number> = {
   gallery: 8 * 1024 * 1024,
   projects: 6 * 1024 * 1024,
   cinematics: 80 * 1024 * 1024,
+  audios: 15 * 1024 * 1024,
 };
 
 function mimeToExt(mime: string): string {
@@ -52,6 +55,16 @@ function mimeToExt(mime: string): string {
       return 'webm';
     case 'video/quicktime':
       return 'mov';
+    case 'audio/mpeg':
+      return 'mp3';
+    case 'audio/ogg':
+      return 'ogg';
+    case 'audio/wav':
+      return 'wav';
+    case 'audio/mp4':
+      return 'm4a';
+    case 'audio/aac':
+      return 'aac';
     default:
       return 'bin';
   }

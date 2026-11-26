@@ -5,6 +5,15 @@ import { RoleHierarchy, UserRole } from '@enxamistas/shared';
 
 const service = new InstitutionalService();
 
+function decodeHeaderValue(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
 export class InstitutionalController {
   async getPublicPortal(_req: Request, res: Response, next: NextFunction) {
     try {
@@ -243,7 +252,9 @@ export class InstitutionalController {
 
   async addRadioTrack(req: any, res: Response, next: NextFunction) {
     try {
-      res.status(201).json(await service.addRadioTrack(req.body, req.user.id));
+      res.status(201).json(
+        await service.addRadioTrack(req.body, req.user.profile.id, req.user.id)
+      );
     } catch (error) {
       next(error);
     }
@@ -264,6 +275,95 @@ export class InstitutionalController {
     try {
       await service.deleteRadioTrack(req.params.id, req.user.id);
       res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // --- Importação de áudio do dispositivo (celular/PC) ---
+  async uploadRadioAudio(req: any, res: Response, next: NextFunction) {
+    try {
+      if (!req.user?.profile?.id) {
+        throw new AppError('Perfil do usuário não encontrado.', 403, 'PROFILE_REQUIRED');
+      }
+      if (!Buffer.isBuffer(req.body)) {
+        throw new AppError(
+          'Envie o arquivo de áudio binário com Content-Type adequado.',
+          400,
+          'INVALID_UPLOAD'
+        );
+      }
+
+      const mimeType = String(req.headers['content-type'] || '').split(';')[0].trim();
+      const title = decodeHeaderValue(req.headers['x-radio-title']);
+      const artist = decodeHeaderValue(req.headers['x-radio-artist']);
+      const coverUrl = decodeHeaderValue(req.headers['x-radio-cover-url']) || undefined;
+      const durationHeader = decodeHeaderValue(req.headers['x-radio-duration']);
+      const duration = durationHeader ? parseInt(durationHeader, 10) : undefined;
+
+      const created = await service.uploadRadioAudio({
+        authorProfileId: req.user.profile.id,
+        actorUserId: req.user.id,
+        title,
+        artist,
+        coverUrl,
+        duration,
+        mimeType,
+        buffer: req.body,
+      });
+
+      res.status(201).json(created);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // --- Stream de áudio armazenado (com suporte a range/seek) ---
+  async streamRadioAudio(req: Request, res: Response, next: NextFunction) {
+    try {
+      const item = await service.getRadioAudioStreamFile(req.params.id);
+
+      if (item.url && item.url.startsWith('http') && !item.fileData) {
+        return res.redirect(item.url);
+      }
+
+      if (!item.fileData) {
+        throw new AppError('Áudio indisponível no momento.', 404, 'AUDIO_UNAVAILABLE');
+      }
+
+      const buffer = Buffer.from(item.fileData);
+      const totalSize = buffer.length;
+      const mimeType = item.mimeType || 'audio/mpeg';
+      const range = req.headers.range;
+
+      if (range) {
+        const match = range.match(/bytes=(\d+)-(\d*)/);
+        if (!match) {
+          return res.status(416).setHeader('Content-Range', `bytes */${totalSize}`).end();
+        }
+        const start = parseInt(match[1], 10);
+        const end = match[2] ? Math.min(parseInt(match[2], 10), totalSize - 1) : totalSize - 1;
+
+        if (start >= totalSize || end < start) {
+          return res.status(416).setHeader('Content-Range', `bytes */${totalSize}`).end();
+        }
+
+        const chunk = buffer.subarray(start, end + 1);
+        res.status(206);
+        res.setHeader('Content-Range', `bytes ${start}-${end}/${totalSize}`);
+        res.setHeader('Accept-Ranges', 'bytes');
+        res.setHeader('Content-Length', String(chunk.length));
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        return res.send(chunk);
+      }
+
+      res.status(200);
+      res.setHeader('Content-Length', String(totalSize));
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      return res.send(buffer);
     } catch (error) {
       next(error);
     }

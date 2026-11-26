@@ -117,6 +117,7 @@ model Profile {
   mansionKeyRequests     MansionKeyRequest[]
   monthlyHighlights      MonthlyHighlight[]
   cinematics             Cinematic[]
+  radioTracks            RadioTrack[]
 }
 
 model CourseCategory {
@@ -601,6 +602,11 @@ model RadioTrack {
   youtubeUrl String?             // URL original do YouTube
   coverUrl  String?
   duration  Int? // In seconds
+  mimeType  String? // audio/mpeg, audio/ogg, audio/wav, audio/mp4, audio/aac
+  fileSize  Int? // bytes
+  fileData  Bytes? // áudio armazenado no Neon quando o S3 não está configurado
+  authorId  String
+  author    Profile @relation(fields: [authorId], references: [id], onDelete: Cascade)
   playlists RadioPlaylistTrack[]
   createdAt DateTime             @default(now())
 }

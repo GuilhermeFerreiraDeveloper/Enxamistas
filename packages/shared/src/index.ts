@@ -240,6 +240,42 @@ export const radioTrackSchema = z.object({
   playlistId: z.string().uuid().optional(),
 });
 
+// --- RÁDIO: ÁUDIO ENVIADO DO DISPOSITIVO ---
+
+export const AUDIO_MIME_TYPES = [
+  'audio/mpeg',
+  'audio/ogg',
+  'audio/wav',
+  'audio/mp4',
+  'audio/aac',
+] as const;
+
+export function audioMimeToExt(mime: string): string {
+  switch (mime) {
+    case 'audio/mpeg':
+      return 'mp3';
+    case 'audio/ogg':
+      return 'ogg';
+    case 'audio/wav':
+      return 'wav';
+    case 'audio/mp4':
+      return 'm4a';
+    case 'audio/aac':
+      return 'aac';
+    default:
+      return 'bin';
+  }
+}
+
+export const radioAudioMetadataSchema = z.object({
+  title: z.string().trim().min(2, 'Título muito curto').max(120, 'Título muito longo'),
+  artist: z.string().trim().min(2, 'Artista muito curto').max(120, 'Artista muito longo'),
+  coverUrl: z.string().url('URL de capa inválida').optional().or(z.literal('')),
+  duration: z.number().int().positive().optional(),
+});
+
+export type RadioAudioMetadataInput = z.infer<typeof radioAudioMetadataSchema>;
+
 export const roleChangeSchema = z.object({
   role: z.nativeEnum(UserRole),
   reason: z.string().max(500).optional(),
