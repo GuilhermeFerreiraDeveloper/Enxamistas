@@ -12,6 +12,8 @@ import {
   CheckCircle2,
   XCircle,
   Radio,
+  Trash2,
+  UploadCloud,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -40,6 +42,9 @@ export default function AdminPage() {
   const [radioRequests, setRadioRequests] = useState<any[]>([]);
   const [radioLibrary, setRadioLibrary] = useState<any[]>([]);
   const [selectedRadioFiles, setSelectedRadioFiles] = useState<Record<string, string>>({});
+  const [radioMusicPassport, setRadioMusicPassport] = useState('');
+  const [radioMusicFile, setRadioMusicFile] = useState<File | null>(null);
+  const [uploadingRadioMusic, setUploadingRadioMusic] = useState(false);
 
   const hasAccess =
     (RoleHierarchy[(user?.role || 'CONVIDADO') as UserRole] ?? 0) >=
@@ -156,6 +161,52 @@ export default function AdminPage() {
       showToast('Solicitação atualizada!', 'success');
     } catch (err: any) {
       showToast(err.response?.data?.error || 'Erro ao revisar solicitação.', 'error');
+    }
+  };
+
+  const handleUploadRadioMusic = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!radioMusicFile) {
+      showToast('Selecione um arquivo MP3.', 'error');
+      return;
+    }
+    if (!radioMusicFile.name.toLowerCase().endsWith('.mp3')) {
+      showToast('Apenas arquivos .mp3 são permitidos.', 'error');
+      return;
+    }
+    if (radioMusicFile.size > 50 * 1024 * 1024) {
+      showToast('O arquivo deve ter no máximo 50 MB.', 'error');
+      return;
+    }
+
+    setUploadingRadioMusic(true);
+    try {
+      await api.post('/radio/library', radioMusicFile, {
+        params: { passport: radioMusicPassport.trim(), filename: radioMusicFile.name },
+        headers: { 'Content-Type': 'audio/mpeg' },
+        timeout: 120000,
+      });
+      setRadioMusicFile(null);
+      await loadTab('RADIO');
+      showToast('MP3 adicionado à biblioteca da rádio.', 'success');
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Erro ao enviar o MP3.', 'error');
+    } finally {
+      setUploadingRadioMusic(false);
+    }
+  };
+
+  const handleDeleteRadioMusic = async (filePath: string) => {
+    if (!window.confirm(`Excluir o arquivo ${filePath}?`)) return;
+    try {
+      await api.delete('/radio/library', { params: { file: filePath } });
+      setRadioLibrary((current) => current.filter((file) => file.filePath !== filePath));
+      setSelectedRadioFiles((current) => Object.fromEntries(
+        Object.entries(current).filter(([, selectedFile]) => selectedFile !== filePath)
+      ));
+      showToast('MP3 removido da biblioteca.', 'success');
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Erro ao excluir o MP3.', 'error');
     }
   };
 
@@ -526,9 +577,70 @@ export default function AdminPage() {
       )}
 
       {tab === 'RADIO' && (
-        <div className="space-y-4">
+        <div className="space-y-8">
+          <section className="bg-graphite border border-white/5 p-5 rounded-sm space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-bold uppercase tracking-widest text-royal-gold flex items-center gap-2">
+                <Radio size={14} /> Biblioteca MP3 ({radioLibrary.length})
+              </h2>
+              <span className="text-[10px] text-white/40">Destino no servidor: musicas/{radioMusicPassport || 'PASSAPORTE'}/</span>
+            </div>
+            <form onSubmit={handleUploadRadioMusic} className="grid grid-cols-1 md:grid-cols-[1fr_2fr_auto] gap-3 items-end">
+              <div className="space-y-1">
+                <label htmlFor="radio-music-passport" className="text-[10px] uppercase tracking-widest text-white/50">Passaporte (pasta de destino)</label>
+                <input
+                  id="radio-music-passport"
+                  required
+                  maxLength={32}
+                  pattern="[A-Za-z0-9-]+"
+                  value={radioMusicPassport}
+                  onChange={(event) => setRadioMusicPassport(event.target.value)}
+                  className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-xs text-white"
+                  placeholder="Ex.: 123456"
+                />
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="radio-music-file" className="text-[10px] uppercase tracking-widest text-white/50">Arquivo MP3 (máx. 50 MB)</label>
+                <input
+                  id="radio-music-file"
+                  required
+                  type="file"
+                  accept=".mp3,audio/mpeg"
+                  onChange={(event) => setRadioMusicFile(event.target.files?.[0] || null)}
+                  className="block w-full text-xs text-white/70 file:mr-3 file:rounded-sm file:border-0 file:bg-royal-gold file:px-3 file:py-2 file:text-xs file:font-bold file:text-obsidian"
+                />
+              </div>
+              <Button type="submit" isLoading={uploadingRadioMusic} disabled={uploadingRadioMusic || !radioMusicFile}>
+                <UploadCloud size={13} /> Adicionar MP3
+              </Button>
+            </form>
+            <div className="space-y-2">
+              {radioLibrary.length === 0 ? (
+                <p className="rounded-sm border border-white/5 bg-obsidian/50 p-4 text-xs text-white/40">Não há MP3s na pasta musicas/ do servidor.</p>
+              ) : radioLibrary.map((file: any) => (
+                <div key={file.filePath} className="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-white/5 bg-obsidian/50 p-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-bold text-white">{file.title}</p>
+                    <p className="truncate text-[10px] text-white/40">{file.filePath}</p>
+                  </div>
+                  <audio
+                    controls
+                    preload="none"
+                    crossOrigin="use-credentials"
+                    src={`${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(/\/$/, '')}/radio/library/stream?file=${encodeURIComponent(file.filePath)}`}
+                    className="h-8 max-w-full"
+                  />
+                  <Button type="button" size="sm" variant="secondary" onClick={() => handleDeleteRadioMusic(file.filePath)}>
+                    <Trash2 size={12} /> Excluir
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-4">
           <h2 className="text-sm font-bold uppercase tracking-widest text-royal-gold flex items-center gap-2">
-            <Radio size={14} /> Músicas ({radioRequests.length})
+            <Radio size={14} /> Pedidos de Música ({radioRequests.length})
           </h2>
           {radioRequests.length === 0 ? (
             <p className="text-xs text-white/40 bg-graphite border border-white/5 p-8 rounded-sm text-center">
@@ -597,6 +709,7 @@ export default function AdminPage() {
               ))}
             </div>
           )}
+          </section>
         </div>
       )}
     </div>

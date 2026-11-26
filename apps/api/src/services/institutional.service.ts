@@ -791,6 +791,61 @@ export class InstitutionalService {
     });
   }
 
+  async uploadRadioLibraryFile(filename: string, passport: string, buffer: Buffer, actorUserId: string) {
+    if (!/^[a-zA-Z0-9-]+$/.test(passport)) {
+      throw new AppError('Passaporte inválido.', 400, 'INVALID_PASSPORT');
+    }
+    if (!filename || filename !== path.basename(filename) || /[\\/]/.test(filename) || !filename.toLowerCase().endsWith('.mp3')) {
+      throw new AppError('Selecione um arquivo com nome válido e extensão .mp3.', 400, 'INVALID_AUDIO_FILENAME');
+    }
+    if (!Buffer.isBuffer(buffer) || buffer.length < 4) {
+      throw new AppError('O arquivo enviado está vazio ou inválido.', 400, 'INVALID_AUDIO_FILE');
+    }
+    const hasId3Header = buffer.subarray(0, 3).toString('ascii') === 'ID3';
+    const hasMpegFrame = buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0;
+    if (!hasId3Header && !hasMpegFrame) {
+      throw new AppError('O arquivo não parece ser um MP3 válido.', 400, 'INVALID_AUDIO_FILE');
+    }
+
+    const root = path.resolve(getRadioMusicRoot());
+    const directory = path.resolve(root, passport);
+    const relativeDirectory = path.relative(root, directory);
+    if (relativeDirectory === '..' || relativeDirectory.startsWith(`..${path.sep}`) || path.isAbsolute(relativeDirectory)) {
+      throw new AppError('Pasta de destino inválida.', 400, 'INVALID_AUDIO_PATH');
+    }
+    fs.mkdirSync(directory, { recursive: true });
+    const realRoot = fs.realpathSync(root);
+    const realDirectory = fs.realpathSync(directory);
+    const realRelativeDirectory = path.relative(realRoot, realDirectory);
+    if (realRelativeDirectory === '..' || realRelativeDirectory.startsWith(`..${path.sep}`) || path.isAbsolute(realRelativeDirectory)) {
+      throw new AppError('Pasta de destino inválida.', 400, 'INVALID_AUDIO_PATH');
+    }
+
+    const filePath = path.join(realDirectory, filename);
+    if (fs.existsSync(filePath)) {
+      throw new AppError('Já existe um arquivo com esse nome nesta pasta.', 409, 'AUDIO_FILE_EXISTS');
+    }
+    fs.writeFileSync(filePath, buffer, { flag: 'wx' });
+
+    const relativePath = `${passport}/${filename}`;
+    await AuditService.log(actorUserId, 'RADIO_LIBRARY_UPLOAD', 'RadioLibraryFile', { filePath: relativePath });
+    return { filePath: relativePath };
+  }
+
+  async deleteRadioLibraryFile(relativePath: string, actorUserId: string) {
+    const filePath = await this.getRadioLibraryFile(relativePath);
+    const linkedTrack = await prisma.radioTrack.findFirst({
+      where: { filePath: relativePath, status: 'ADICIONADA_PLAYLIST' },
+      select: { id: true, title: true },
+    });
+    if (linkedTrack) {
+      throw new AppError('Este MP3 está vinculado a uma playlist aprovada. Remova a associação antes de excluir o arquivo.', 409, 'AUDIO_FILE_IN_USE');
+    }
+
+    fs.unlinkSync(filePath);
+    await AuditService.log(actorUserId, 'RADIO_LIBRARY_DELETE', 'RadioLibraryFile', { filePath: relativePath });
+  }
+
   async getRadioLibraryFile(relativePath: string) {
     if (!relativePath || relativePath.includes('\\') || path.posix.isAbsolute(relativePath)) {
       throw new AppError('Caminho da música inválido.', 400, 'INVALID_AUDIO_PATH');

@@ -392,6 +392,52 @@ describe('Enxamistas Critical Suite', () => {
     }
   });
 
+  it('Radio staff can manage MP3 files under musicas/passaporte safely', async () => {
+    const musicRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'enxamistas-radio-management-'));
+    const previousMusicDir = process.env.RADIO_MUSIC_DIR;
+    process.env.RADIO_MUSIC_DIR = musicRoot;
+    const validMp3 = Buffer.from('ID3\u0004\u0000\u0000');
+    prisma.radioTrack.findFirst = async () => null;
+
+    try {
+      await assert.rejects(
+        () => institutionalService.uploadRadioLibraryFile('../escape.mp3', '123456', validMp3, 'staff-user'),
+        /nome válido/
+      );
+      await assert.rejects(
+        () => institutionalService.uploadRadioLibraryFile('not-mp3.mp3', '123456', Buffer.from('not audio'), 'staff-user'),
+        /MP3 válido/
+      );
+
+      const result = await institutionalService.uploadRadioLibraryFile(
+        'Sunflower.mp3', '123456', validMp3, 'staff-user'
+      );
+      const savedPath = path.join(musicRoot, '123456', 'Sunflower.mp3');
+      assert.equal(result.filePath, '123456/Sunflower.mp3');
+      assert.equal(fs.existsSync(savedPath), true);
+
+      await assert.rejects(
+        () => institutionalService.uploadRadioLibraryFile('Sunflower.mp3', '123456', validMp3, 'staff-user'),
+        /Já existe/
+      );
+
+      prisma.radioTrack.findFirst = async () => ({ id: 'approved-track', title: 'Sunflower' });
+      await assert.rejects(
+        () => institutionalService.deleteRadioLibraryFile(result.filePath, 'staff-user'),
+        /vinculado a uma playlist aprovada/
+      );
+      assert.equal(fs.existsSync(savedPath), true);
+
+      prisma.radioTrack.findFirst = async () => null;
+      await institutionalService.deleteRadioLibraryFile(result.filePath, 'staff-user');
+      assert.equal(fs.existsSync(savedPath), false);
+    } finally {
+      if (previousMusicDir === undefined) delete process.env.RADIO_MUSIC_DIR;
+      else process.env.RADIO_MUSIC_DIR = previousMusicDir;
+      fs.rmSync(musicRoot, { recursive: true, force: true });
+    }
+  });
+
   it('Radio library recursively lists MP3 files and rejects paths outside its root', async () => {
     const musicRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'enxamistas-radio-'));
     const previousMusicDir = process.env.RADIO_MUSIC_DIR;

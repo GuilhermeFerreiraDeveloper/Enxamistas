@@ -137,7 +137,20 @@ router.delete(
   controller.deleteRadioRequest
 );
 
-// Reprodução de arquivos MP3 da biblioteca geral musicas/.
+// Biblioteca MP3 da rádio: somente Staff pode gerenciar os arquivos.
+router.post(
+  '/radio/library',
+  authMiddleware,
+  permissionMiddleware('radio.manage', UserRole.ABELHA_PRINCESA),
+  express.raw({ type: ['audio/mpeg', 'audio/mp3'], limit: '50mb' }),
+  controller.uploadRadioLibraryFile
+);
+router.delete(
+  '/radio/library',
+  authMiddleware,
+  permissionMiddleware('radio.manage', UserRole.ABELHA_PRINCESA),
+  controller.deleteRadioLibraryFile
+);
 router.get('/radio/library/stream', authMiddleware, controller.streamRadioLibraryFile);
 
 // Stream de arquivo .mp3 da pasta musicas/PASSAPORTE/

@@ -363,6 +363,27 @@ export class InstitutionalController {
     }
   }
 
+  async uploadRadioLibraryFile(req: any, res: Response, next: NextFunction) {
+    try {
+      const filename = typeof req.query.filename === 'string' ? req.query.filename : '';
+      const passport = typeof req.query.passport === 'string' ? req.query.passport : '';
+      const result = await service.uploadRadioLibraryFile(filename, passport, req.body, req.user.id);
+      res.status(201).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteRadioLibraryFile(req: any, res: Response, next: NextFunction) {
+    try {
+      const relativePath = typeof req.query.file === 'string' ? req.query.file : '';
+      await service.deleteRadioLibraryFile(relativePath, req.user.id);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async streamRadioLibraryFile(req: Request, res: Response, next: NextFunction) {
     try {
       const relativePath = typeof req.query.file === 'string' ? req.query.file : '';

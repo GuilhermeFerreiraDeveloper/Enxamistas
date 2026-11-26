@@ -7,7 +7,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { useRadio, RadioTrackItem } from '@/contexts/RadioContext';
 import { Button } from '@/components/ui/Button';
-import { Modal } from '@/components/ui/Modal';
 import { RoleHierarchy, UserRole } from '@enxamistas/shared';
 
 export default function RadioPage() {
@@ -21,7 +20,7 @@ export default function RadioPage() {
 
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'player' | 'pedidos' | 'playlist'>('player');
-  const [modalOpen, setModalOpen] = useState(false);
+  const [requestFormOpen, setRequestFormOpen] = useState(false);
   const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [form, setForm] = useState({ title: '', artist: '', referenceUrl: '' });
 
@@ -83,7 +82,7 @@ export default function RadioPage() {
     setRequestSubmitting(true);
     try {
       await api.post('/radio/requests', { title, artist, referenceUrl: referenceUrl || undefined });
-      setModalOpen(false);
+      setRequestFormOpen(false);
       setForm({ title: '', artist: '', referenceUrl: '' });
       await loadMyRequests();
       showToast('Pedido enviado com sucesso!', 'success');
@@ -240,8 +239,55 @@ export default function RadioPage() {
               })}
             </div>
           )}
-          <div className="mt-6">
-            <Button onClick={() => setModalOpen(true)}>Novo Pedido de Música</Button>
+          <div className="mt-6 space-y-4">
+            <Button type="button" onClick={() => setRequestFormOpen((open) => !open)} aria-expanded={requestFormOpen}>
+              <Plus size={14} /> {requestFormOpen ? 'Fechar formulário' : 'Novo Pedido de Música'}
+            </Button>
+            {requestFormOpen && (
+              <form onSubmit={handleRequestMusic} className="max-w-2xl bg-graphite border border-royal-gold/30 p-5 rounded-sm space-y-4">
+                <h3 className="text-sm font-bold uppercase tracking-widest text-royal-gold">Solicitar Música</h3>
+                <div className="space-y-1">
+                  <label htmlFor="radio-request-title" className="text-[10px] uppercase tracking-widest text-white/50">Nome da música</label>
+                  <input
+                    id="radio-request-title"
+                    required
+                    minLength={2}
+                    maxLength={120}
+                    value={form.title}
+                    onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+                    className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-sm text-white"
+                    placeholder="Ex.: Sunflower"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="radio-request-artist" className="text-[10px] uppercase tracking-widest text-white/50">Artista</label>
+                  <input
+                    id="radio-request-artist"
+                    required
+                    minLength={2}
+                    maxLength={120}
+                    value={form.artist}
+                    onChange={(event) => setForm((current) => ({ ...current, artist: event.target.value }))}
+                    className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-sm text-white"
+                    placeholder="Ex.: Post Malone"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor="radio-request-reference" className="text-[10px] uppercase tracking-widest text-white/50">Link de referência (opcional)</label>
+                  <input
+                    id="radio-request-reference"
+                    type="url"
+                    maxLength={2048}
+                    value={form.referenceUrl}
+                    onChange={(event) => setForm((current) => ({ ...current, referenceUrl: event.target.value }))}
+                    className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-sm text-white"
+                    placeholder="https://..."
+                  />
+                </div>
+                <p className="text-[10px] text-white/40">O pedido será vinculado à sua conta e passaporte. A Staff selecionará o MP3 ao aprová-lo.</p>
+                <Button type="submit" isLoading={requestSubmitting} disabled={requestSubmitting}>Enviar pedido</Button>
+              </form>
+            )}
           </div>
         </div>
       ) : tab === 'playlist' ? (
@@ -299,69 +345,6 @@ export default function RadioPage() {
         </div>
       ) : null}
 
-      <Modal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title="Solicitar Música"
-      >
-        <form onSubmit={handleRequestMusic} className="space-y-4">
-          <div className="space-y-1">
-            <label htmlFor="radio-request-title" className="text-[10px] uppercase tracking-widest text-white/50">
-              Nome da música
-            </label>
-            <input
-              id="radio-request-title"
-              required
-              minLength={2}
-              maxLength={120}
-              value={form.title}
-              onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-              className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-sm text-white"
-              placeholder="Ex.: Sunflower"
-            />
-          </div>
-          <div className="space-y-1">
-            <label htmlFor="radio-request-artist" className="text-[10px] uppercase tracking-widest text-white/50">
-              Artista
-            </label>
-            <input
-              id="radio-request-artist"
-              required
-              minLength={2}
-              maxLength={120}
-              value={form.artist}
-              onChange={(event) => setForm((current) => ({ ...current, artist: event.target.value }))}
-              className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-sm text-white"
-              placeholder="Ex.: Post Malone"
-            />
-          </div>
-          <div className="space-y-1">
-            <label htmlFor="radio-request-reference" className="text-[10px] uppercase tracking-widest text-white/50">
-              Link de referência (opcional)
-            </label>
-            <input
-              id="radio-request-reference"
-              type="url"
-              maxLength={2048}
-              value={form.referenceUrl}
-              onChange={(event) => setForm((current) => ({ ...current, referenceUrl: event.target.value }))}
-              className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-sm text-white"
-              placeholder="https://..."
-            />
-          </div>
-          <p className="text-[10px] text-white/40">
-            O pedido será vinculado à sua conta e passaporte. A Staff selecionará o MP3 ao aprová-lo.
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" isLoading={requestSubmitting} disabled={requestSubmitting}>
-              Enviar pedido
-            </Button>
-          </div>
-        </form>
-      </Modal>
     </div>
   );
 }
