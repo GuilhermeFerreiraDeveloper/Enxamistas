@@ -544,18 +544,27 @@ export class InstitutionalService {
     actorProfileId: string,
     actorUserId: string
   ) {
-    const { title, artist, referenceUrl } = rawData;
-
-    if (!title || title.trim().length < 2) {
-      throw new AppError('Título da música é obrigatório.', 400, 'INVALID_TITLE');
-    }
-    if (!artist || artist.trim().length < 2) {
-      throw new AppError('Artista é obrigatório.', 400, 'INVALID_ARTIST');
+    if (!rawData || typeof rawData !== 'object') {
+      throw new AppError('Dados do pedido inválidos.', 400, 'INVALID_REQUEST');
     }
 
-    if (referenceUrl?.trim()) {
+    const title = typeof rawData.title === 'string' ? rawData.title.trim() : '';
+    const artist = typeof rawData.artist === 'string' ? rawData.artist.trim() : '';
+    const referenceUrl = typeof rawData.referenceUrl === 'string' ? rawData.referenceUrl.trim() : '';
+
+    if (rawData.referenceUrl != null && typeof rawData.referenceUrl !== 'string') {
+      throw new AppError('O link de referência deve ser uma URL válida começando com http:// ou https://.', 400, 'INVALID_REFERENCE_URL');
+    }
+    if (title.length < 2) {
+      throw new AppError('Título da música deve ter pelo menos 2 caracteres.', 400, 'INVALID_TITLE');
+    }
+    if (artist.length < 2) {
+      throw new AppError('Artista deve ter pelo menos 2 caracteres.', 400, 'INVALID_ARTIST');
+    }
+
+    if (referenceUrl) {
       try {
-        const url = new URL(referenceUrl.trim());
+        const url = new URL(referenceUrl);
         if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Invalid protocol');
       } catch {
         throw new AppError('O link de referência deve ser uma URL válida começando com http:// ou https://.', 400, 'INVALID_REFERENCE_URL');
@@ -590,10 +599,10 @@ export class InstitutionalService {
 
     const request = await prisma.radioTrack.create({
       data: {
-        title: title.trim(),
-        artist: artist.trim(),
+        title,
+        artist,
         passport,
-        referenceUrl: referenceUrl?.trim() || null,
+        referenceUrl: referenceUrl || null,
         status: 'SOLICITADA',
         authorId: actorProfileId,
       },

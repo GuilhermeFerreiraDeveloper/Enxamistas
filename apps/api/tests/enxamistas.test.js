@@ -236,6 +236,15 @@ describe('Enxamistas Critical Suite', () => {
     process.env.RADIO_MUSIC_DIR = musicRoot;
 
     try {
+      await assert.rejects(
+        () => institutionalService.createRadioRequest({ title: 12, artist: 'Artista' }, 'profile-1', 'user-1'),
+        /Título da música/
+      );
+      await assert.rejects(
+        () => institutionalService.createRadioRequest({ title: 'Música', artist: 'Artista', referenceUrl: 12 }, 'profile-1', 'user-1'),
+        /URL válida/
+      );
+
       prisma.profile.findUnique = async () => ({
         id: 'profile-1',
         user: { passport: '123456' },

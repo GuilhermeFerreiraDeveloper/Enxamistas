@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { useRadio, RadioTrackItem } from '@/contexts/RadioContext';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { RoleHierarchy, UserRole } from '@enxamistas/shared';
 
 export default function RadioPage() {
@@ -21,6 +22,7 @@ export default function RadioPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'player' | 'pedidos' | 'playlist'>('player');
   const [modalOpen, setModalOpen] = useState(false);
+  const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [form, setForm] = useState({ title: '', artist: '', referenceUrl: '' });
 
   const isLeader =
@@ -70,18 +72,25 @@ export default function RadioPage() {
 
   const handleRequestMusic = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title.trim() || !form.artist.trim()) {
-      showToast('Título e artista são obrigatórios.', 'error');
+    const title = form.title.trim();
+    const artist = form.artist.trim();
+    const referenceUrl = form.referenceUrl.trim();
+    if (title.length < 2 || artist.length < 2) {
+      showToast('Informe um título e artista com pelo menos 2 caracteres.', 'error');
       return;
     }
+
+    setRequestSubmitting(true);
     try {
-      await api.post('/radio/requests', { title: form.title, artist: form.artist, referenceUrl: form.referenceUrl });
+      await api.post('/radio/requests', { title, artist, referenceUrl: referenceUrl || undefined });
       setModalOpen(false);
       setForm({ title: '', artist: '', referenceUrl: '' });
       await loadMyRequests();
       showToast('Pedido enviado com sucesso!', 'success');
     } catch (err: any) {
       showToast(err.response?.data?.error || 'Erro ao enviar pedido.', 'error');
+    } finally {
+      setRequestSubmitting(false);
     }
   };
 
@@ -289,6 +298,70 @@ export default function RadioPage() {
           )}
         </div>
       ) : null}
+
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Solicitar Música"
+      >
+        <form onSubmit={handleRequestMusic} className="space-y-4">
+          <div className="space-y-1">
+            <label htmlFor="radio-request-title" className="text-[10px] uppercase tracking-widest text-white/50">
+              Nome da música
+            </label>
+            <input
+              id="radio-request-title"
+              required
+              minLength={2}
+              maxLength={120}
+              value={form.title}
+              onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+              className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-sm text-white"
+              placeholder="Ex.: Sunflower"
+            />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="radio-request-artist" className="text-[10px] uppercase tracking-widest text-white/50">
+              Artista
+            </label>
+            <input
+              id="radio-request-artist"
+              required
+              minLength={2}
+              maxLength={120}
+              value={form.artist}
+              onChange={(event) => setForm((current) => ({ ...current, artist: event.target.value }))}
+              className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-sm text-white"
+              placeholder="Ex.: Post Malone"
+            />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="radio-request-reference" className="text-[10px] uppercase tracking-widest text-white/50">
+              Link de referência (opcional)
+            </label>
+            <input
+              id="radio-request-reference"
+              type="url"
+              maxLength={2048}
+              value={form.referenceUrl}
+              onChange={(event) => setForm((current) => ({ ...current, referenceUrl: event.target.value }))}
+              className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-sm text-white"
+              placeholder="https://..."
+            />
+          </div>
+          <p className="text-[10px] text-white/40">
+            O pedido será vinculado à sua conta e passaporte. A Staff selecionará o MP3 ao aprová-lo.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" isLoading={requestSubmitting} disabled={requestSubmitting}>
+              Enviar pedido
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
