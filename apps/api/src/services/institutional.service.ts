@@ -501,7 +501,7 @@ export class InstitutionalService {
     const approvedByFile = new Map(
       approvedTracks
         .filter((track) => track.filePath)
-        .map((track) => [`${track.passport}/${track.filePath}`.replace(/\\/g, '/'), track])
+        .map((track) => [track.filePath!.replace(/\\/g, '/'), track])
     );
     const musicRoot = getRadioMusicRoot();
     const libraryFiles: string[] = [];
@@ -614,7 +614,7 @@ export class InstitutionalService {
 
   async getMyRadioRequests(profileId: string) {
     return prisma.radioTrack.findMany({
-      where: { authorId: profileId },
+      where: { authorId: profileId, status: { not: 'ADICIONADA_PLAYLIST' } },
       include: {
         reviewedBy: { select: { id: true, name: true } },
       },
@@ -664,7 +664,8 @@ export class InstitutionalService {
     status: 'ADICIONADA_PLAYLIST' | 'RECUSADA',
     actorProfileId: string,
     actorUserId: string,
-    rejectionReason?: string
+    rejectionReason?: string,
+    selectedFilePath?: string
   ) {
     const existing = await prisma.radioTrack.findUnique({
       where: { id },
@@ -679,10 +680,40 @@ export class InstitutionalService {
       throw new AppError('Este pedido já foi decidido.', 409, 'REQUEST_ALREADY_REVIEWED');
     }
 
+    let playlist: { id: string } | null = null;
+    let nextPlaylistOrder = 1;
+    if (status === 'ADICIONADA_PLAYLIST') {
+      if (!selectedFilePath) {
+        throw new AppError('Selecione um arquivo MP3 da biblioteca para aprovar o pedido.', 400, 'AUDIO_FILE_REQUIRED');
+      }
+      await this.getRadioLibraryFile(selectedFilePath);
+
+      playlist = await prisma.radioPlaylist.findUnique({
+        where: { profileId: existing.authorId },
+      });
+      if (!playlist) {
+        playlist = await prisma.radioPlaylist.create({
+          data: {
+            name: `Playlist de ${existing.passport}`,
+            description: `Playlist individual do membro ${existing.passport}`,
+            profileId: existing.authorId,
+          },
+        });
+      }
+
+      const lastOrder = await prisma.radioPlaylistTrack.findFirst({
+        where: { playlistId: playlist.id },
+        orderBy: { order: 'desc' },
+        select: { order: true },
+      });
+      nextPlaylistOrder = (lastOrder?.order || 0) + 1;
+    }
+
     const track = await prisma.radioTrack.update({
       where: { id },
       data: {
         status,
+        filePath: status === 'ADICIONADA_PLAYLIST' ? selectedFilePath : null,
         reviewedById: actorProfileId,
         reviewedAt: new Date(),
         rejectionReason: status === 'RECUSADA' ? rejectionReason?.trim() || null : null,
@@ -698,23 +729,10 @@ export class InstitutionalService {
       title: track.title,
       status,
       rejectionReason,
+      filePath: status === 'ADICIONADA_PLAYLIST' ? selectedFilePath : undefined,
     });
 
-    if (status === 'ADICIONADA_PLAYLIST') {
-      const playlist = await prisma.radioPlaylist.findUnique({
-        where: { profileId: track.authorId },
-      });
-
-      if (!playlist) {
-        throw new AppError('Playlist do membro não encontrada.', 404, 'PLAYLIST_NOT_FOUND');
-      }
-
-      const lastOrder = await prisma.radioPlaylistTrack.findFirst({
-        where: { playlistId: playlist.id },
-        orderBy: { order: 'desc' },
-        select: { order: true },
-      });
-
+    if (status === 'ADICIONADA_PLAYLIST' && playlist) {
       await prisma.radioPlaylistTrack.upsert({
         where: {
           playlistId_trackId: {
@@ -726,7 +744,7 @@ export class InstitutionalService {
         create: {
           playlistId: playlist.id,
           trackId: track.id,
-          order: (lastOrder?.order || 0) + 1,
+          order: nextPlaylistOrder,
         },
       });
     }

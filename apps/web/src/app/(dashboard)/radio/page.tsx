@@ -9,10 +9,6 @@ import { useRadio, RadioTrackItem } from '@/contexts/RadioContext';
 import { Button } from '@/components/ui/Button';
 import { RoleHierarchy, UserRole } from '@enxamistas/shared';
 
-function normalizeTrackName(value: string) {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-}
-
 export default function RadioPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -194,6 +190,7 @@ export default function RadioPage() {
           <h2 className="text-lg font-bold text-white uppercase tracking-[0.2em] flex items-center gap-2">
             <List size={18} className="text-royal-gold" /> Meus Pedidos
           </h2>
+          <p className="text-xs text-white/40">Pedidos aceitos são movidos para Minha Playlist.</p>
           {myRequests.length === 0 ? (
             <div className="p-12 bg-graphite/40 border border-white/5 rounded-sm text-center text-sm text-white/40">
               Nenhum pedido enviado ainda.
@@ -255,15 +252,13 @@ export default function RadioPage() {
             <div className="space-y-2">
               {myPlaylist.tracks.map((pt: any) => {
                 const t = pt.track as RadioTrackItem;
-                const normalizedTitle = normalizeTrackName(t.title);
-                const normalizedArtist = normalizeTrackName(t.artist);
-                const libraryTrack = tracks.find((track) => {
-                  if (track.passport !== t.passport) return false;
-                  const filename = normalizeTrackName(track.title);
-                  return filename === normalizedTitle ||
-                    (filename.includes(normalizedTitle) && filename.includes(normalizedArtist));
-                });
-                const playableTrack = libraryTrack || (t.filePath && t.passport ? t : null);
+                const libraryTrack = t.filePath
+                  ? tracks.find((track) => track.filePath === t.filePath)
+                  : null;
+                const playableTrack = libraryTrack || (t.filePath ? {
+                  ...t,
+                  url: `/radio/library/stream?file=${encodeURIComponent(t.filePath)}`,
+                } : null);
                 return (
                   <div
                     key={t.id}

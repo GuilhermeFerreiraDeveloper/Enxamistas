@@ -38,6 +38,8 @@ export default function AdminPage() {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [newRoleForm, setNewRoleForm] = useState({ code: '', name: '', level: 30, description: '' });
   const [radioRequests, setRadioRequests] = useState<any[]>([]);
+  const [radioLibrary, setRadioLibrary] = useState<any[]>([]);
+  const [selectedRadioFiles, setSelectedRadioFiles] = useState<Record<string, string>>({});
 
   const hasAccess =
     (RoleHierarchy[(user?.role || 'CONVIDADO') as UserRole] ?? 0) >=
@@ -74,8 +76,12 @@ export default function AdminPage() {
         setSettings(map);
         setAuditLogs(aRes.data?.items || []);
       } else if (activeTab === 'RADIO') {
-        const res = await api.get('/radio/requests');
-        setRadioRequests(Array.isArray(res.data) ? res.data : []);
+        const [requestsRes, libraryRes] = await Promise.all([
+          api.get('/radio/requests'),
+          api.get('/radio'),
+        ]);
+        setRadioRequests(Array.isArray(requestsRes.data) ? requestsRes.data : []);
+        setRadioLibrary(Array.isArray(libraryRes.data?.tracks) ? libraryRes.data.tracks : []);
       }
     } catch (err: any) {
       showToast(err.response?.data?.error || 'Erro ao carregar dados administrativos.', 'error');
@@ -153,7 +159,11 @@ export default function AdminPage() {
     }
   };
 
-  const handleUpdateRadioStatus = async (trackId: string, status: 'ADICIONADA_PLAYLIST' | 'RECUSADA') => {
+  const handleUpdateRadioStatus = async (
+    trackId: string,
+    status: 'ADICIONADA_PLAYLIST' | 'RECUSADA',
+    filePath?: string
+  ) => {
     let rejectionReason: string | undefined;
     if (status === 'RECUSADA') {
       const answer = window.prompt('Motivo da recusa (opcional):');
@@ -162,8 +172,13 @@ export default function AdminPage() {
     }
 
     try {
-      await api.put(`/radio/requests/${trackId}/status`, { status, rejectionReason });
+      await api.put(`/radio/requests/${trackId}/status`, { status, rejectionReason, filePath });
       setRadioRequests((current) => current.filter((request) => request.id !== trackId));
+      setSelectedRadioFiles((current) => {
+        const next = { ...current };
+        delete next[trackId];
+        return next;
+      });
       showToast(status === 'RECUSADA' ? 'Pedido recusado e membro notificado.' : 'Pedido aceito e membro notificado.', 'success');
     } catch (err: any) {
       showToast(err.response?.data?.error || 'Erro ao atualizar pedido.', 'error');
@@ -544,8 +559,34 @@ export default function AdminPage() {
                     </span>
                   </div>
 
+                  <div className="space-y-2">
+                    <label className="block text-[10px] uppercase tracking-widest text-white/50" htmlFor={`radio-file-${track.id}`}>
+                      MP3 que será vinculado à playlist e à rádio
+                    </label>
+                    <select
+                      id={`radio-file-${track.id}`}
+                      value={selectedRadioFiles[track.id] || ''}
+                      onChange={(event) => setSelectedRadioFiles((current) => ({ ...current, [track.id]: event.target.value }))}
+                      className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-xs text-white"
+                    >
+                      <option value="">Selecione um MP3 da pasta musicas/</option>
+                      {radioLibrary.map((file: any) => (
+                        <option key={file.filePath} value={file.filePath}>
+                          {file.title} — {file.filePath}
+                        </option>
+                      ))}
+                    </select>
+                    {radioLibrary.length === 0 && (
+                      <p className="text-[10px] text-amber-300">Nenhum MP3 encontrado. Adicione arquivos ao disco musicas/ do Render.</p>
+                    )}
+                  </div>
+
                   <div className="flex gap-2 flex-wrap">
-                    <Button size="sm" onClick={() => handleUpdateRadioStatus(track.id, 'ADICIONADA_PLAYLIST')}>
+                    <Button
+                      size="sm"
+                      disabled={!selectedRadioFiles[track.id]}
+                      onClick={() => handleUpdateRadioStatus(track.id, 'ADICIONADA_PLAYLIST', selectedRadioFiles[track.id])}
+                    >
                       <CheckCircle2 size={12} /> Aceitar
                     </Button>
                     <Button size="sm" variant="secondary" onClick={() => handleUpdateRadioStatus(track.id, 'RECUSADA')}>

@@ -334,7 +334,7 @@ export class InstitutionalController {
 
   async updateRadioRequestStatus(req: any, res: Response, next: NextFunction) {
     try {
-      const { status, rejectionReason } = req.body;
+      const { status, rejectionReason, filePath } = req.body;
       const validStatuses = ['ADICIONADA_PLAYLIST', 'RECUSADA'];
       if (!validStatuses.includes(status)) {
         throw new AppError('Status inválido.', 400, 'INVALID_STATUS');
@@ -345,7 +345,8 @@ export class InstitutionalController {
           status,
           req.user.profile.id,
           req.user.id,
-          rejectionReason
+          rejectionReason,
+          filePath
         )
       );
     } catch (error) {
