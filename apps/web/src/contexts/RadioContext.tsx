@@ -204,12 +204,17 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Autoplay inicial aleatório quando as tracks carregam e não há nada tocando
+  // Autoplay inicial/automático: sempre que houver faixas e nada estiver tocando, começa a reproduzir
   useEffect(() => {
     if (!isLoaded && tracks.length > 0 && !currentTrack && !isPlaying) {
       const randomIndex = Math.floor(Math.random() * tracks.length);
       playTrack(tracks[randomIndex]);
       setIsLoaded(true);
+    }
+    // Quando novas faixas são carregadas e nada está tocando, toca automaticamente
+    if (tracks.length > 0 && !currentTrack && !isPlaying && isLoaded) {
+      const randomIndex = Math.floor(Math.random() * tracks.length);
+      playTrack(tracks[randomIndex]);
     }
   }, [tracks, isLoaded, currentTrack, isPlaying]);
 
