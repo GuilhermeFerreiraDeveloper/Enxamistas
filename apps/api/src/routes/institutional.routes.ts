@@ -120,6 +120,26 @@ router.delete(
   controller.deleteRadioTrack
 );
 
+// Moderação de faixas de rádio (apenas Staff e Liderança)
+router.get(
+  '/radio/pending',
+  authMiddleware,
+  permissionMiddleware('radio.manage', UserRole.ABELHA_PRINCESA),
+  controller.listPendingRadioTracks
+);
+router.put(
+  '/radio/tracks/:id/approve',
+  authMiddleware,
+  permissionMiddleware('radio.manage', UserRole.ABELHA_PRINCESA),
+  controller.approveRadioTrack
+);
+router.put(
+  '/radio/tracks/:id/reject',
+  authMiddleware,
+  permissionMiddleware('radio.manage', UserRole.ABELHA_PRINCESA),
+  controller.rejectRadioTrack
+);
+
 // Importar áudio do dispositivo (celular/PC) para a rádio
 router.post(
   '/radio/uploads/audio',

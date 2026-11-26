@@ -11,6 +11,7 @@ import {
   ScrollText,
   CheckCircle2,
   XCircle,
+  Radio,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,7 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { RoleBadge } from '@/components/ui/RoleBadge';
 import { RoleHierarchy, RoleLabels, UserRole } from '@enxamistas/shared';
 
-type AdminTab = 'METRICS' | 'MEMBERS' | 'RBAC' | 'MODERATION' | 'PROOFS_KEYS' | 'SETTINGS_LOGS';
+type AdminTab = 'METRICS' | 'MEMBERS' | 'RBAC' | 'MODERATION' | 'PROOFS_KEYS' | 'SETTINGS_LOGS' | 'RADIO';
 
 export default function AdminPage() {
   const { user } = useAuth();
@@ -36,6 +37,7 @@ export default function AdminPage() {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [newRoleForm, setNewRoleForm] = useState({ code: '', name: '', level: 30, description: '' });
+  const [pendingRadio, setPendingRadio] = useState<any[]>([]);
 
   const hasAccess =
     (RoleHierarchy[(user?.role || 'CONVIDADO') as UserRole] ?? 0) >=
@@ -71,6 +73,9 @@ export default function AdminPage() {
         for (const item of sRes.data || []) map[item.key] = item.value;
         setSettings(map);
         setAuditLogs(aRes.data?.items || []);
+      } else if (activeTab === 'RADIO') {
+        const res = await api.get('/radio/pending');
+        setPendingRadio(Array.isArray(res.data) ? res.data : []);
       }
     } catch (err: any) {
       showToast(err.response?.data?.error || 'Erro ao carregar dados administrativos.', 'error');
@@ -148,6 +153,26 @@ export default function AdminPage() {
     }
   };
 
+  const handleApproveRadio = async (trackId: string) => {
+    try {
+      await api.put(`/radio/tracks/${trackId}/approve`);
+      await loadTab('RADIO');
+      showToast('Faixa aprovada na rádio!', 'success');
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Erro ao aprovar faixa.', 'error');
+    }
+  };
+
+  const handleRejectRadio = async (trackId: string) => {
+    try {
+      await api.put(`/radio/tracks/${trackId}/reject`);
+      await loadTab('RADIO');
+      showToast('Faixa rejeitada.', 'info');
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Erro ao rejeitar faixa.', 'error');
+    }
+  };
+
   const handleValidateProof = async (proofId: string, status: 'VALIDATED' | 'REJECTED') => {
     try {
       await api.post(`/academic/proofs/${proofId}/validate`, {
@@ -189,6 +214,7 @@ export default function AdminPage() {
           { k: 'RBAC', l: 'RBAC & Permissões', icon: KeyRound },
           { k: 'MODERATION', l: 'Denúncias', icon: AlertTriangle },
           { k: 'PROOFS_KEYS', l: 'Comprovantes & Chaves', icon: CheckCircle2 },
+          { k: 'RADIO', l: 'Rádio - Moderação', icon: Radio },
           { k: 'SETTINGS_LOGS', l: 'Configurações & Auditoria', icon: Settings },
         ].map((t) => (
           <button
@@ -484,6 +510,41 @@ export default function AdminPage() {
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {tab === 'RADIO' && (
+        <div className="space-y-4">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-royal-gold flex items-center gap-2">
+            <Radio size={14} /> Faixas Pendentes de Aprovação ({pendingRadio.length})
+          </h2>
+          {pendingRadio.length === 0 ? (
+            <p className="text-xs text-white/40 bg-graphite border border-white/5 p-8 rounded-sm text-center">
+              Nenhuma faixa pendente para aprovação no momento.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {pendingRadio.map((track) => (
+                <div key={track.id} className="bg-graphite border border-white/5 p-4 rounded-sm flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-white">{track.title}</p>
+                    <p className="text-white/50">{track.artist}</p>
+                    <p className="text-white/40">
+                      Por {track.author?.name} (#{track.author?.user?.passport}) • {track.sourceType}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button size="sm" onClick={() => handleApproveRadio(track.id)}>
+                      <CheckCircle2 size={12} /> Aprovar
+                    </Button>
+                    <Button size="sm" variant="secondary" onClick={() => handleRejectRadio(track.id)}>
+                      <XCircle size={12} /> Rejeitar
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -483,7 +483,10 @@ export class InstitutionalService {
   // --- RADIO ---
   async getRadioData() {
     const [tracks, playlists] = await prisma.$transaction([
-      prisma.radioTrack.findMany({ orderBy: { createdAt: 'desc' } }),
+      prisma.radioTrack.findMany({
+        where: { status: 'APPROVED' },
+        orderBy: { createdAt: 'desc' },
+      }),
       prisma.radioPlaylist.findMany({
         include: {
           tracks: {
@@ -534,6 +537,7 @@ export class InstitutionalService {
         youtubeUrl,
         duration: data.duration || null,
         authorId: actorProfileId,
+        status: 'PENDING',
       },
     });
 
@@ -559,6 +563,42 @@ export class InstitutionalService {
   async deleteRadioTrack(id: string, actorUserId: string) {
     await prisma.radioTrack.delete({ where: { id } });
     await AuditService.log(actorUserId, 'RADIO_DELETE_TRACK', 'RadioTrack', { id });
+  }
+
+  async listPendingRadioTracks() {
+    return prisma.radioTrack.findMany({
+      where: { status: 'PENDING' },
+      include: {
+        author: { select: { id: true, name: true, avatar: true, user: { select: { passport: true, role: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async approveRadioTrack(id: string, actorUserId: string) {
+    const track = await prisma.radioTrack.update({
+      where: { id },
+      data: { status: 'APPROVED' },
+      include: {
+        author: { select: { id: true, name: true, avatar: true } },
+      },
+    });
+
+    await AuditService.log(actorUserId, 'RADIO_APPROVE_TRACK', 'RadioTrack', { id, title: track.title });
+    return track;
+  }
+
+  async rejectRadioTrack(id: string, actorUserId: string) {
+    const track = await prisma.radioTrack.update({
+      where: { id },
+      data: { status: 'REJECTED' },
+      include: {
+        author: { select: { id: true, name: true, avatar: true } },
+      },
+    });
+
+    await AuditService.log(actorUserId, 'RADIO_REJECT_TRACK', 'RadioTrack', { id, title: track.title });
+    return track;
   }
 
   // --- ÁUDIO ENVIADO DO DISPOSITIVO ---
@@ -679,6 +719,7 @@ export class InstitutionalService {
         fileSize: params.buffer.length,
         fileData,
         authorId: params.authorProfileId,
+        status: 'PENDING',
       },
     });
 

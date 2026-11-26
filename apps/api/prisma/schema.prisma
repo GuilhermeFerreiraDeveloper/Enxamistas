@@ -607,6 +607,7 @@ model RadioTrack {
   fileData  Bytes? // áudio armazenado no Neon quando o S3 não está configurado
   authorId  String
   author    Profile @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED
   playlists RadioPlaylistTrack[]
   createdAt DateTime             @default(now())
 }

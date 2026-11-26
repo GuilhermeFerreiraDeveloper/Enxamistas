@@ -280,6 +280,34 @@ export class InstitutionalController {
     }
   }
 
+  // --- Moderação de faixas de rádio ---
+  async listPendingRadioTracks(req: any, res: Response, next: NextFunction) {
+    try {
+      const tracks = await service.listPendingRadioTracks();
+      res.status(200).json(tracks);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async approveRadioTrack(req: any, res: Response, next: NextFunction) {
+    try {
+      const track = await service.approveRadioTrack(req.params.id, req.user.id);
+      res.status(200).json(track);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async rejectRadioTrack(req: any, res: Response, next: NextFunction) {
+    try {
+      const track = await service.rejectRadioTrack(req.params.id, req.user.id);
+      res.status(200).json(track);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // --- Importação de áudio do dispositivo (celular/PC) ---
   async uploadRadioAudio(req: any, res: Response, next: NextFunction) {
     try {
