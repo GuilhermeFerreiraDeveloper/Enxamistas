@@ -82,6 +82,12 @@ WHERE "trackId" IN (
 DELETE FROM "RadioPlaylist" WHERE "profileId" IS NULL;
 ALTER TABLE "RadioPlaylist" ALTER COLUMN "profileId" SET NOT NULL;
 
+DELETE FROM "RadioPlaylistTrack" a
+USING "RadioPlaylistTrack" b
+WHERE a."id" > b."id"
+  AND a."playlistId" = b."playlistId"
+  AND a."trackId" = b."trackId";
+
 CREATE UNIQUE INDEX IF NOT EXISTS "RadioPlaylist_profileId_key" ON "RadioPlaylist"("profileId");
 CREATE UNIQUE INDEX IF NOT EXISTS "RadioPlaylistTrack_playlistId_trackId_key" ON "RadioPlaylistTrack"("playlistId", "trackId");
 
