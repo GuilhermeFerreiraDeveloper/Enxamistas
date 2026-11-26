@@ -18,3 +18,9 @@ build
 
 # Neon local project link
 .neon
+
+# Visual Studio workspace files
+.vs/
+
+# Member radio audio is stored on the server, not in Git
+/musicas/**/*.mp3
