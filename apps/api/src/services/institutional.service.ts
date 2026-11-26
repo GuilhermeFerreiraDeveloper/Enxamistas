@@ -532,7 +532,6 @@ export class InstitutionalService {
         url,
         youtubeId,
         youtubeUrl,
-        coverUrl: data.coverUrl || null,
         duration: data.duration || null,
         authorId: actorProfileId,
       },
@@ -626,7 +625,6 @@ export class InstitutionalService {
     const metadata = radioAudioMetadataSchema.parse({
       title: params.title,
       artist: params.artist,
-      coverUrl: params.coverUrl,
       duration: params.duration,
     });
 
@@ -676,7 +674,6 @@ export class InstitutionalService {
         url: audioUrl,
         youtubeId: null,
         youtubeUrl: null,
-        coverUrl: metadata.coverUrl || null,
         duration: metadata.duration || null,
         mimeType: params.mimeType,
         fileSize: params.buffer.length,
@@ -699,7 +696,6 @@ export class InstitutionalService {
       artist: created.artist,
       sourceType: created.sourceType,
       url: created.url,
-      coverUrl: created.coverUrl,
       duration: created.duration,
       mimeType: created.mimeType,
       fileSize: created.fileSize,

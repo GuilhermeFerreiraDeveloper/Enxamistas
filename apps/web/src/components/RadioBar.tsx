@@ -31,11 +31,7 @@ export function RadioBar() {
       <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-10 h-10 bg-obsidian border border-royal-gold/30 rounded-sm flex items-center justify-center overflow-hidden shrink-0">
-            {currentTrack.coverUrl ? (
-              <img src={currentTrack.coverUrl} alt={currentTrack.title} className="w-full h-full object-cover" />
-            ) : (
-              <Radio size={18} className="text-royal-gold" />
-            )}
+            <Radio size={18} className="text-royal-gold" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1">

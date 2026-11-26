@@ -297,7 +297,6 @@ export class InstitutionalController {
       const mimeType = String(req.headers['content-type'] || '').split(';')[0].trim();
       const title = decodeHeaderValue(req.headers['x-radio-title']);
       const artist = decodeHeaderValue(req.headers['x-radio-artist']);
-      const coverUrl = decodeHeaderValue(req.headers['x-radio-cover-url']) || undefined;
       const durationHeader = decodeHeaderValue(req.headers['x-radio-duration']);
       const duration = durationHeader ? parseInt(durationHeader, 10) : undefined;
 
@@ -306,7 +305,6 @@ export class InstitutionalController {
         actorUserId: req.user.id,
         title,
         artist,
-        coverUrl,
         duration,
         mimeType,
         buffer: req.body,

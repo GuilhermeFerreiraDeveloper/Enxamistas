@@ -53,7 +53,6 @@ export default function RadioPage() {
     url: string;
     youtubeUrl: string;
     youtubeId: string;
-    coverUrl: string;
   }>({
     title: '',
     artist: '',
@@ -62,7 +61,6 @@ export default function RadioPage() {
     url: '',
     youtubeUrl: '',
     youtubeId: '',
-    coverUrl: '',
   });
 
   // Upload de arquivo do dispositivo (celular ou PC)
@@ -101,7 +99,6 @@ export default function RadioPage() {
       url: '',
       youtubeUrl: '',
       youtubeId: '',
-      coverUrl: '',
     });
     setAudioFile(null);
     setAudioUploadProgress(0);
@@ -126,8 +123,8 @@ export default function RadioPage() {
         await api.post('/radio/tracks', {
           title: form.title,
           artist: form.artist,
+          sourceType: 'YOUTUBE',
           youtubeUrl: form.youtubeUrl,
-          coverUrl: form.coverUrl || undefined,
         });
       } else if (form.audioInputMode === 'URL') {
         if (!form.url) {
@@ -139,7 +136,6 @@ export default function RadioPage() {
           artist: form.artist,
           sourceType: 'AUDIO',
           url: form.url,
-          coverUrl: form.coverUrl || undefined,
         });
       } else {
         // Modo arquivo: a importação é feita por handleImportAudioFile
@@ -198,7 +194,6 @@ export default function RadioPage() {
             form.title || audioFile.name.replace(ext, '')
           ),
           'x-radio-artist': encodeURIComponent(form.artist || ''),
-          ...(form.coverUrl ? { 'x-radio-cover-url': encodeURIComponent(form.coverUrl) } : {}),
         },
         onUploadProgress: (evt) => {
           if (evt.total) {
@@ -521,13 +516,6 @@ export default function RadioPage() {
               className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-xs text-white"
             />
           )}
-          <input
-            type="url"
-            placeholder="URL da capa (opcional)"
-            value={form.coverUrl}
-            onChange={(e) => setForm((f) => ({ ...f, coverUrl: e.target.value }))}
-            className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-xs text-white"
-          />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>
               Cancelar

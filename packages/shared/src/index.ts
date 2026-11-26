@@ -235,7 +235,6 @@ export const radioTrackSchema = z.object({
   sourceType: z.enum(['AUDIO', 'YOUTUBE']).default('AUDIO'),
   url: z.string().url().optional().or(z.literal('')),
   youtubeUrl: z.string().url().optional().or(z.literal('')),
-  coverUrl: z.string().url().optional().or(z.literal('')),
   duration: z.number().int().positive().optional(),
   playlistId: z.string().uuid().optional(),
 });
@@ -270,7 +269,6 @@ export function audioMimeToExt(mime: string): string {
 export const radioAudioMetadataSchema = z.object({
   title: z.string().trim().min(2, 'Título muito curto').max(120, 'Título muito longo'),
   artist: z.string().trim().min(2, 'Artista muito curto').max(120, 'Artista muito longo'),
-  coverUrl: z.string().url('URL de capa inválida').optional().or(z.literal('')),
   duration: z.number().int().positive().optional(),
 });
 

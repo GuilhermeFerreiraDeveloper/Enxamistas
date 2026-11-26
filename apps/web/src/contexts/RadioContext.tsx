@@ -10,7 +10,6 @@ export interface RadioTrackItem {
   url?: string | null;
   youtubeId?: string | null;
   youtubeUrl?: string | null;
-  coverUrl?: string | null;
   duration?: number | null;
 }
 
@@ -95,7 +94,7 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
       audio.removeEventListener('ended', onEnded);
       audio.removeEventListener('error', onError);
     };
-  }, []);
+  }, [volume]);
 
   useEffect(() => {
     const tag = document.createElement('script');
@@ -114,13 +113,14 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Cria o player do YouTube uma única vez (iframe sempre montado, oculto)
   useEffect(() => {
     if (!youtubeApiReady || typeof window === 'undefined' || !(window as any).YT) return;
 
     const player = new (window as any).YT.Player('youtube-radio-player', {
       height: '0',
       width: '0',
-      videoId: currentTrack?.youtubeId || '',
+      videoId: '',
       playerVars: {
         autoplay: 0,
         controls: 0,
@@ -131,7 +131,9 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
       events: {
         onReady: (event: any) => {
           youtubePlayerRef.current = event.target;
-          if (currentTrack?.sourceType === 'YOUTUBE' && isPlaying) {
+          // Se já há uma track do YouTube ativa e tocando, inicia
+          if (currentTrack?.sourceType === 'YOUTUBE' && currentTrack?.youtubeId && isPlaying) {
+            event.target.cueVideoById(currentTrack.youtubeId);
             event.target.playVideo();
             event.target.setVolume(volume * 100);
           }
@@ -151,6 +153,7 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
         onError: () => {
           setIsPlaying(false);
           setAudioError('Não foi possível reproduzir este vídeo do YouTube.');
+          handleAutoNext();
         },
       },
     });
@@ -163,7 +166,21 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
       }
       youtubePlayerRef.current = null;
     };
-  }, [youtubeApiReady, currentTrack, isPlaying, volume]);
+  }, [youtubeApiReady, volume]);
+
+  // Quando muda a track do YouTube, toca no player existente
+  useEffect(() => {
+    if (!youtubePlayerRef.current) return;
+    if (currentTrack?.sourceType === 'YOUTUBE' && currentTrack?.youtubeId) {
+      const player = youtubePlayerRef.current;
+      player.cueVideoById(currentTrack.youtubeId);
+      player.playVideo();
+      player.setVolume(volume * 100);
+      setIsPlaying(true);
+      setProgress(0);
+      setDuration(0);
+    }
+  }, [currentTrack, volume]);
 
   const handleAutoNext = () => {
     if (!tracks.length) return;
@@ -340,15 +357,14 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
-      {isYoutube || currentTrack?.youtubeId ? (
-        <iframe
-          id="youtube-radio-player"
-          title="YouTube Radio Player"
-          src="https://www.youtube.com/embed/"
-          style={{ display: 'none', width: 0, height: 0 }}
-          sandbox="allow-same-origin allow-scripts"
-        />
-      ) : null}
+      {/* Iframe do YouTube sempre montado (oculto) para evitar problemas de criação/destruição do player */}
+      <iframe
+        id="youtube-radio-player"
+        title="YouTube Radio Player"
+        src="https://www.youtube.com/embed/"
+        style={{ display: 'none', width: 0, height: 0 }}
+        sandbox="allow-same-origin allow-scripts"
+      />
     </RadioContext.Provider>
   );
 }
