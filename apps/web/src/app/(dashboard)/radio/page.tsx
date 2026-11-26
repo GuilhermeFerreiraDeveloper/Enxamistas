@@ -8,7 +8,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { useRadio, RadioTrackItem } from '@/contexts/RadioContext';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-import { RoleHierarchy, UserRole } from '@enxamistas/shared';
+import { RoleHierarchy, UserRole, extractYoutubeId } from '@enxamistas/shared';
 
 export default function RadioPage() {
   const { user } = useAuth();
@@ -19,7 +19,7 @@ export default function RadioPage() {
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({ title: '', artist: '', url: '', coverUrl: '' });
+  const [form, setForm] = useState({ title: '', artist: '', sourceType: 'AUDIO', url: '', youtubeUrl: '', youtubeId: '', coverUrl: '' });
 
   const isLeader =
     (RoleHierarchy[(user?.role || 'CONVIDADO') as UserRole] ?? 0) >=
@@ -45,9 +45,18 @@ export default function RadioPage() {
   const handleAddTrack = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/radio/tracks', form);
+      const payload = { ...form };
+      if (form.sourceType === 'YOUTUBE' && form.youtubeUrl) {
+        const ytId = extractYoutubeId(form.youtubeUrl);
+        if (!ytId) {
+          showToast('URL do YouTube inválida.', 'error');
+          return;
+        }
+        payload.youtubeId = ytId;
+      }
+      await api.post('/radio/tracks', payload);
       setModalOpen(false);
-      setForm({ title: '', artist: '', url: '', coverUrl: '' });
+      setForm({ title: '', artist: '', sourceType: 'AUDIO', url: '', youtubeUrl: '', youtubeId: '', coverUrl: '' });
       await loadRadio();
       showToast('Faixa adicionada à rádio!', 'success');
     } catch (err: any) {
@@ -114,7 +123,12 @@ export default function RadioPage() {
                     {isCurrent && isPlaying ? <Pause size={16} /> : <Play size={16} />}
                   </button>
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-white truncate">{track.title}</p>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <p className="text-sm font-bold text-white truncate">{track.title}</p>
+                      {track.sourceType === 'YOUTUBE' && (
+                        <span className="text-[9px] bg-royal-gold/10 text-royal-gold border border-royal-gold/20 px-1.5 py-0.5 rounded">YT</span>
+                      )}
+                    </div>
                     <p className="text-xs text-white/50 truncate">{track.artist}</p>
                   </div>
                 </div>
@@ -175,14 +189,52 @@ export default function RadioPage() {
             onChange={(e) => setForm((f) => ({ ...f, artist: e.target.value }))}
             className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-sm text-white"
           />
-          <input
-            required
-            type="url"
-            placeholder="URL direta do áudio (.mp3 / .ogg / stream autorizado)"
-            value={form.url}
-            onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
-            className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-xs text-white"
-          />
+          <div className="bg-obsidian border border-white/10 rounded-sm p-3">
+            <label className="block text-xs font-bold text-white/70 mb-2">Fonte da faixa</label>
+            <div className="flex gap-2">
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-white/60 hover:text-white">
+                <input
+                  type="radio"
+                  name="sourceType"
+                  value="AUDIO"
+                  checked={form.sourceType === 'AUDIO'}
+                  onChange={() => setForm((f) => ({ ...f, sourceType: 'AUDIO' }))}
+                  className="text-royal-gold"
+                />
+                Áudio direto
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-white/60 hover:text-white">
+                <input
+                  type="radio"
+                  name="sourceType"
+                  value="YOUTUBE"
+                  checked={form.sourceType === 'YOUTUBE'}
+                  onChange={() => setForm((f) => ({ ...f, sourceType: 'YOUTUBE' }))}
+                  className="text-royal-gold"
+                />
+                YouTube
+              </label>
+            </div>
+          </div>
+          {form.sourceType === 'AUDIO' ? (
+            <input
+              required
+              type="url"
+              placeholder="URL direta do áudio (.mp3 / .ogg / stream autorizado)"
+              value={form.url}
+              onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
+              className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-xs text-white"
+            />
+          ) : (
+            <input
+              required
+              type="url"
+              placeholder="URL do YouTube (youtube.com/watch?v=..., youtu.be/...)"
+              value={form.youtubeUrl}
+              onChange={(e) => setForm((f) => ({ ...f, youtubeUrl: e.target.value }))}
+              className="w-full bg-obsidian border border-white/10 rounded-sm px-3 py-2 text-xs text-white"
+            />
+          )}
           <input
             type="url"
             placeholder="URL da capa (opcional)"

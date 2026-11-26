@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma';
 import {
   announcementSchema,
+  extractYoutubeId,
   guestbookSchema,
   mansionKeyRequestSchema,
   monthlyHighlightSchema,
@@ -494,13 +495,37 @@ export class InstitutionalService {
 
   async addRadioTrack(rawData: any, actorUserId: string) {
     const data = radioTrackSchema.parse(rawData);
+
+    let sourceType = data.sourceType || 'AUDIO';
+    let url: string | null = data.url || null;
+    let youtubeId: string | null = null;
+    let youtubeUrl: string | null = data.youtubeUrl || null;
+
+    if (sourceType === 'YOUTUBE' || (youtubeUrl && !url)) {
+      sourceType = 'YOUTUBE';
+      youtubeId = extractYoutubeId(youtubeUrl!);
+      if (!youtubeId) {
+        throw new AppError(
+          'URL do YouTube inválida. Use links como youtube.com/watch?v=..., youtu.be/... ou youtube.com/shorts/...',
+          400,
+          'INVALID_YOUTUBE_URL'
+        );
+      }
+      url = null;
+    } else if (!url) {
+      throw new AppError('Informe a URL do áudio ou uma URL válida do YouTube.', 400, 'INVALID_RADIO_URL');
+    }
+
     const track = await prisma.radioTrack.create({
       data: {
         title: data.title,
         artist: data.artist,
-        url: data.url,
+        sourceType,
+        url,
+        youtubeId,
+        youtubeUrl,
         coverUrl: data.coverUrl || null,
-        duration: data.duration,
+        duration: data.duration || null,
       },
     });
 
@@ -511,7 +536,7 @@ export class InstitutionalService {
       });
     }
 
-    await AuditService.log(actorUserId, 'RADIO_ADD_TRACK', 'RadioTrack', { id: track.id, title: track.title });
+    await AuditService.log(actorUserId, 'RADIO_ADD_TRACK', 'RadioTrack', { id: track.id, title: track.title, sourceType });
     return track;
   }
 

@@ -595,7 +595,10 @@ model RadioTrack {
   id        String               @id @default(uuid())
   title     String
   artist    String
-  url       String
+  sourceType String             @default("AUDIO") // AUDIO, YOUTUBE
+  url       String?              // áudio direto (.mp3, .ogg, stream)
+  youtubeId String?              // ID do vídeo do YouTube
+  youtubeUrl String?             // URL original do YouTube
   coverUrl  String?
   duration  Int? // In seconds
   playlists RadioPlaylistTrack[]

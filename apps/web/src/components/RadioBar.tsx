@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Play, Pause, SkipBack, SkipForward, Volume2, Radio, Heart } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, Radio, Heart, Youtube } from 'lucide-react';
 import { useRadio } from '@/contexts/RadioContext';
 
 export function RadioBar() {
@@ -38,9 +38,14 @@ export function RadioBar() {
             )}
           </div>
           <div className="min-w-0">
-            <Link href="/radio" className="text-xs font-bold text-white hover:text-royal-gold truncate block">
-              {currentTrack.title}
-            </Link>
+            <div className="flex items-center gap-1">
+              <Link href="/radio" className="text-xs font-bold text-white hover:text-royal-gold truncate block">
+                {currentTrack.title}
+              </Link>
+              {currentTrack.sourceType === 'YOUTUBE' && (
+                <Youtube size={10} className="text-royal-gold" />
+              )}
+            </div>
             <p className="text-[10px] text-white/50 truncate">{currentTrack.artist}</p>
             {audioError && <p className="text-[10px] text-red-400">{audioError}</p>}
           </div>

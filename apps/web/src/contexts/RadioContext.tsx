@@ -6,7 +6,10 @@ export interface RadioTrackItem {
   id: string;
   title: string;
   artist: string;
-  url: string;
+  sourceType: 'AUDIO' | 'YOUTUBE';
+  url?: string | null;
+  youtubeId?: string | null;
+  youtubeUrl?: string | null;
   coverUrl?: string | null;
   duration?: number | null;
 }
@@ -28,12 +31,15 @@ interface RadioContextType {
   setVolume: (v: number) => void;
   seekTo: (sec: number) => void;
   toggleFavorite: (trackId: string) => void;
+  isYoutube: boolean;
 }
 
 const RadioContext = createContext<RadioContextType>({} as RadioContextType);
 
 export function RadioProvider({ children }: { children: React.ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const youtubePlayerRef = useRef<any>(null);
+  const [youtubeApiReady, setYoutubeApiReady] = useState(false);
   const [tracks, setTracks] = useState<RadioTrackItem[]>([]);
   const [currentTrack, setCurrentTrack] = useState<RadioTrackItem | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -79,12 +85,93 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    const firstScriptTag = document.getElementsByTagName('script')[0];
+    if (firstScriptTag) {
+      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+    }
+
+    (window as any).onYouTubeIframeAPIReady = () => {
+      setYoutubeApiReady(true);
+    };
+
+    return () => {
+      delete (window as any).onYouTubeIframeAPIReady;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!youtubeApiReady || typeof window === 'undefined' || !(window as any).YT) return;
+
+    const player = new (window as any).YT.Player('youtube-radio-player', {
+      height: '0',
+      width: '0',
+      videoId: currentTrack?.youtubeId || '',
+      playerVars: {
+        autoplay: 0,
+        controls: 0,
+        rel: 0,
+        showinfo: 0,
+        modestbranding: 1,
+      },
+      events: {
+        onReady: (event: any) => {
+          youtubePlayerRef.current = event.target;
+          if (currentTrack?.sourceType === 'YOUTUBE' && isPlaying) {
+            event.target.playVideo();
+            event.target.setVolume(volume * 100);
+          }
+        },
+        onStateChange: (event: any) => {
+          const state = event.data;
+          if (state === (window as any).YT.PlayerState.PLAYING) {
+            setIsPlaying(true);
+            setAudioError(null);
+          } else if (state === (window as any).YT.PlayerState.ENDED) {
+            setIsPlaying(false);
+          } else if (state === (window as any).YT.PlayerState.PAUSED) {
+            setIsPlaying(false);
+          }
+        },
+        onError: () => {
+          setIsPlaying(false);
+          setAudioError('Não foi possível reproduzir este vídeo do YouTube.');
+        },
+      },
+    });
+
+    return () => {
+      try {
+        player.destroy();
+      } catch {
+        // Ignore
+      }
+      youtubePlayerRef.current = null;
+    };
+  }, [youtubeApiReady, currentTrack, isPlaying, volume]);
+
   const playTrack = (track: RadioTrackItem) => {
-    const audio = audioRef.current;
-    if (!audio) return;
     setAudioError(null);
     setCurrentTrack(track);
-    audio.src = track.url;
+
+    if (track.sourceType === 'YOUTUBE' && track.youtubeId) {
+      const player = youtubePlayerRef.current;
+      if (player) {
+        player.cueVideoById(track.youtubeId);
+        player.playVideo();
+        player.setVolume(volume * 100);
+      }
+      setIsPlaying(true);
+      setProgress(0);
+      setDuration(0);
+      return;
+    }
+
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.src = track.url || '';
     audio
       .play()
       .then(() => setIsPlaying(true))
@@ -95,9 +182,24 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   };
 
   const togglePlay = () => {
-    const audio = audioRef.current;
-    if (!audio || !currentTrack) return;
+    if (!currentTrack) return;
     setAudioError(null);
+
+    if (currentTrack.sourceType === 'YOUTUBE') {
+      const player = youtubePlayerRef.current;
+      if (!player) return;
+      if (isPlaying) {
+        player.pauseVideo();
+        setIsPlaying(false);
+      } else {
+        player.playVideo();
+        setIsPlaying(true);
+      }
+      return;
+    }
+
+    const audio = audioRef.current;
+    if (!audio) return;
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
@@ -130,10 +232,12 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
     const clamped = Math.min(1, Math.max(0, v));
     setVolumeState(clamped);
     if (audioRef.current) audioRef.current.volume = clamped;
+    const player = youtubePlayerRef.current;
+    if (player) player.setVolume(clamped * 100);
   };
 
   const seekTo = (sec: number) => {
-    if (audioRef.current && Number.isFinite(sec)) {
+    if (audioRef.current && Number.isFinite(sec) && currentTrack?.sourceType === 'AUDIO') {
       audioRef.current.currentTime = sec;
       setProgress(sec);
     }
@@ -150,6 +254,8 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
       return next;
     });
   };
+
+  const isYoutube = currentTrack?.sourceType === 'YOUTUBE';
 
   return (
     <RadioContext.Provider
@@ -170,9 +276,19 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
         setVolume,
         seekTo,
         toggleFavorite,
+        isYoutube,
       }}
     >
       {children}
+      {isYoutube || currentTrack?.youtubeId ? (
+        <iframe
+          id="youtube-radio-player"
+          title="YouTube Radio Player"
+          src="https://www.youtube.com/embed/"
+          style={{ display: 'none', width: 0, height: 0 }}
+          sandbox="allow-same-origin allow-scripts"
+        />
+      ) : null}
     </RadioContext.Provider>
   );
 }

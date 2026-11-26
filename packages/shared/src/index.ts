@@ -232,7 +232,9 @@ export const mansionKeyRequestSchema = z.object({
 export const radioTrackSchema = z.object({
   title: z.string().trim().min(2).max(120),
   artist: z.string().trim().min(2).max(120),
-  url: z.string().url(),
+  sourceType: z.enum(['AUDIO', 'YOUTUBE']).default('AUDIO'),
+  url: z.string().url().optional().or(z.literal('')),
+  youtubeUrl: z.string().url().optional().or(z.literal('')),
   coverUrl: z.string().url().optional().or(z.literal('')),
   duration: z.number().int().positive().optional(),
   playlistId: z.string().uuid().optional(),
@@ -257,6 +259,34 @@ export const cinematicYoutubeSchema = z.object({
 });
 
 export type CinematicYoutubeInput = z.infer<typeof cinematicYoutubeSchema>;
+
+export function extractYoutubeId(rawUrl: string): string | null {
+  try {
+    const parsed = new URL(rawUrl.trim());
+    const host = parsed.hostname.replace(/^www\./, '').toLowerCase();
+
+    let candidate: string | null = null;
+    if (host === 'youtu.be') {
+      candidate = parsed.pathname.split('/').filter(Boolean)[0] || null;
+    } else if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'music.youtube.com') {
+      if (parsed.pathname === '/watch') {
+        candidate = parsed.searchParams.get('v');
+      } else {
+        const segments = parsed.pathname.split('/').filter(Boolean);
+        if (['embed', 'shorts', 'live', 'v'].includes(segments[0])) {
+          candidate = segments[1] || null;
+        }
+      }
+    }
+
+    if (candidate && /^[a-zA-Z0-9_-]{11}$/.test(candidate)) {
+      return candidate;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 export function isLeadershipOrStaff(role?: string | null): boolean {
   if (!role) return false;
