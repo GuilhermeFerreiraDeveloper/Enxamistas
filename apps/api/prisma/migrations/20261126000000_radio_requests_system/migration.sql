@@ -20,23 +20,25 @@ WHERE "status" IS NULL OR "status" NOT IN ('SOLICITADA', 'EM_ANALISE', 'ADICIONA
 
 ALTER TABLE "RadioTrack" ALTER COLUMN "status" SET DEFAULT 'SOLICITADA';
 
+-- Faixas antigas sem um perfil ou usuário válido não podem pertença a uma playlist individual.
+-- Remove esses registros órfãos e seus vínculos antes da conversão.
+DELETE FROM "RadioTrack"
+WHERE "authorId" IS NULL
+   OR NOT EXISTS (
+     SELECT 1
+     FROM "Profile" p
+     WHERE p."id" = "RadioTrack"."authorId"
+   );
+
 UPDATE "RadioTrack" rt
 SET "passport" = u."passport"
 FROM "Profile" p
 JOIN "User" u ON u."id" = p."userId"
-WHERE rt."authorId" = p."id";
+WHERE rt."authorId" = p."id"
+  AND rt."passport" IS DISTINCT FROM u."passport";
 
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM "RadioTrack" rt
-    WHERE rt."authorId" IS NULL
-       OR rt."passport" IS NULL
-       OR NOT EXISTS (SELECT 1 FROM "Profile" p WHERE p."id" = rt."authorId")
-  ) THEN
-    RAISE EXCEPTION 'Pedidos de rádio possuem autor/passaporte inválido; corrija os dados antes da migração.';
-  END IF;
-END $$;
+DELETE FROM "RadioTrack"
+WHERE "passport" IS NULL;
 
 ALTER TABLE "RadioTrack" ALTER COLUMN "passport" SET NOT NULL;
 ALTER TABLE "RadioTrack" ALTER COLUMN "authorId" SET NOT NULL;
