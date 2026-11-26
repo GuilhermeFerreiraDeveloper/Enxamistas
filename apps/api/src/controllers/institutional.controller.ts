@@ -5,6 +5,54 @@ import { RoleHierarchy, UserRole } from '@enxamistas/shared';
 
 const service = new InstitutionalService();
 
+function streamAudioFile(filePath: string, req: Request, res: Response, next: NextFunction) {
+  const fs = require('fs');
+  const stat = fs.statSync(filePath);
+  const totalSize = stat.size;
+  const mimeType = 'audio/mpeg';
+  const range = req.headers.range;
+
+  const stream = (options?: { start: number; end: number }) => {
+    const audioStream = fs.createReadStream(filePath, options);
+    audioStream.on('error', (error: Error) => {
+      if (res.headersSent) {
+        res.destroy();
+        return;
+      }
+      next(error);
+    });
+    return audioStream.pipe(res);
+  };
+
+  if (range) {
+    const match = range.match(/bytes=(\d+)-(\d*)/);
+    if (!match) {
+      return res.status(416).setHeader('Content-Range', `bytes */${totalSize}`).end();
+    }
+
+    const start = parseInt(match[1], 10);
+    const end = match[2] ? Math.min(parseInt(match[2], 10), totalSize - 1) : totalSize - 1;
+    if (start >= totalSize || end < start) {
+      return res.status(416).setHeader('Content-Range', `bytes */${totalSize}`).end();
+    }
+
+    res.status(206);
+    res.setHeader('Content-Range', `bytes ${start}-${end}/${totalSize}`);
+    res.setHeader('Content-Length', String(end - start + 1));
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    return stream({ start, end });
+  }
+
+  res.status(200);
+  res.setHeader('Content-Length', String(totalSize));
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Content-Type', mimeType);
+  res.setHeader('Cache-Control', 'private, max-age=3600');
+  return stream();
+}
+
 function decodeHeaderValue(raw: unknown): string {
   if (typeof raw !== 'string') return '';
   try {
@@ -286,8 +334,8 @@ export class InstitutionalController {
 
   async updateRadioRequestStatus(req: any, res: Response, next: NextFunction) {
     try {
-      const { status, rejectionReason, filePath } = req.body;
-      const validStatuses = ['SOLICITADA', 'EM_ANALISE', 'ADICIONADA_PLAYLIST', 'RECUSADA'];
+      const { status, rejectionReason } = req.body;
+      const validStatuses = ['ADICIONADA_PLAYLIST', 'RECUSADA'];
       if (!validStatuses.includes(status)) {
         throw new AppError('Status inválido.', 400, 'INVALID_STATUS');
       }
@@ -297,8 +345,7 @@ export class InstitutionalController {
           status,
           req.user.profile.id,
           req.user.id,
-          rejectionReason,
-          filePath
+          rejectionReason
         )
       );
     } catch (error) {
@@ -315,48 +362,25 @@ export class InstitutionalController {
     }
   }
 
+  async streamRadioLibraryFile(req: Request, res: Response, next: NextFunction) {
+    try {
+      const relativePath = typeof req.query.file === 'string' ? req.query.file : '';
+      const filePath = await service.getRadioLibraryFile(relativePath);
+      streamAudioFile(filePath, req, res, next);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // Stream de arquivo .mp3 da pasta musicas/PASSAPORTE/
   async streamRadioFile(req: Request, res: Response, next: NextFunction) {
     try {
       const { passport, filename } = req.params;
       const filePath = await service.getAuthorizedRadioFile(passport, filename);
-      const fs = require('fs');
-
-      const stat = fs.statSync(filePath);
-      const totalSize = stat.size;
-      const mimeType = 'audio/mpeg';
-      const range = req.headers.range;
-
-      if (range) {
-        const match = range.match(/bytes=(\d+)-(\d*)/);
-        if (!match) {
-          return res.status(416).setHeader('Content-Range', `bytes */${totalSize}`).end();
-        }
-        const start = parseInt(match[1], 10);
-        const end = match[2] ? Math.min(parseInt(match[2], 10), totalSize - 1) : totalSize - 1;
-
-        if (start >= totalSize || end < start) {
-          return res.status(416).setHeader('Content-Range', `bytes */${totalSize}`).end();
-        }
-
-        const chunk = fs.readFileSync(filePath, { start, end: end + 1 });
-        res.status(206);
-        res.setHeader('Content-Range', `bytes ${start}-${end}/${totalSize}`);
-        res.setHeader('Accept-Ranges', 'bytes');
-        res.setHeader('Content-Length', String(chunk.length));
-        res.setHeader('Content-Type', mimeType);
-        res.setHeader('Cache-Control', 'public, max-age=3600');
-        return res.send(chunk);
-      }
-
-      res.status(200);
-      res.setHeader('Content-Length', String(totalSize));
-      res.setHeader('Accept-Ranges', 'bytes');
-      res.setHeader('Content-Type', mimeType);
-      res.setHeader('Cache-Control', 'public, max-age=3600');
-      return res.sendFile(filePath);
+      streamAudioFile(filePath, req, res, next);
     } catch (error) {
       next(error);
     }
   }
+
 }

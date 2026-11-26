@@ -38,8 +38,6 @@ export default function AdminPage() {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [newRoleForm, setNewRoleForm] = useState({ code: '', name: '', level: 30, description: '' });
   const [radioRequests, setRadioRequests] = useState<any[]>([]);
-  const [radioFilePaths, setRadioFilePaths] = useState<Record<string, string>>({});
-  const [radioRejectionReasons, setRadioRejectionReasons] = useState<Record<string, string>>({});
 
   const hasAccess =
     (RoleHierarchy[(user?.role || 'CONVIDADO') as UserRole] ?? 0) >=
@@ -155,30 +153,20 @@ export default function AdminPage() {
     }
   };
 
-  const handleUpdateRadioStatus = async (
-    trackId: string,
-    status: 'SOLICITADA' | 'EM_ANALISE' | 'ADICIONADA_PLAYLIST' | 'RECUSADA'
-  ) => {
+  const handleUpdateRadioStatus = async (trackId: string, status: 'ADICIONADA_PLAYLIST' | 'RECUSADA') => {
+    let rejectionReason: string | undefined;
+    if (status === 'RECUSADA') {
+      const answer = window.prompt('Motivo da recusa (opcional):');
+      if (answer === null) return;
+      rejectionReason = answer.trim() || undefined;
+    }
+
     try {
-      await api.put(`/radio/requests/${trackId}/status`, {
-        status,
-        filePath: radioFilePaths[trackId],
-        rejectionReason: radioRejectionReasons[trackId],
-      });
-      await loadTab('RADIO');
-      showToast(status === 'RECUSADA' ? 'Pedido recusado.' : 'Status da música atualizado.', 'success');
+      await api.put(`/radio/requests/${trackId}/status`, { status, rejectionReason });
+      setRadioRequests((current) => current.filter((request) => request.id !== trackId));
+      showToast(status === 'RECUSADA' ? 'Pedido recusado e membro notificado.' : 'Pedido aceito e membro notificado.', 'success');
     } catch (err: any) {
       showToast(err.response?.data?.error || 'Erro ao atualizar pedido.', 'error');
-    }
-  };
-
-  const handleDeleteRadioRequest = async (trackId: string) => {
-    try {
-      await api.delete(`/radio/requests/${trackId}`);
-      await loadTab('RADIO');
-      showToast('Pedido removido.', 'info');
-    } catch (err: any) {
-      showToast(err.response?.data?.error || 'Erro ao remover pedido.', 'error');
     }
   };
 
@@ -556,39 +544,13 @@ export default function AdminPage() {
                     </span>
                   </div>
 
-                  <div className="grid md:grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <input
-                        value={radioFilePaths[track.id] || track.filePath || ''}
-                        onChange={(e) => setRadioFilePaths((prev) => ({ ...prev, [track.id]: e.target.value }))}
-                        placeholder="Nome do MP3, ex.: musica.mp3"
-                        className="w-full rounded-sm bg-obsidian border border-white/10 px-3 py-2 text-white"
-                      />
-                      <div className="flex gap-2 flex-wrap">
-                        <Button size="sm" onClick={() => handleUpdateRadioStatus(track.id, 'EM_ANALISE')}>
-                          Em análise
-                        </Button>
-                        <Button size="sm" onClick={() => handleUpdateRadioStatus(track.id, 'ADICIONADA_PLAYLIST')}>
-                          <CheckCircle2 size={12} /> Adicionar à playlist
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <input
-                        value={radioRejectionReasons[track.id] || ''}
-                        onChange={(e) => setRadioRejectionReasons((prev) => ({ ...prev, [track.id]: e.target.value }))}
-                        placeholder="Motivo da recusa"
-                        className="w-full rounded-sm bg-obsidian border border-white/10 px-3 py-2 text-white"
-                      />
-                      <div className="flex gap-2 flex-wrap">
-                        <Button size="sm" variant="secondary" onClick={() => handleUpdateRadioStatus(track.id, 'RECUSADA')}>
-                          <XCircle size={12} /> Recusar
-                        </Button>
-                        <Button size="sm" variant="secondary" onClick={() => handleDeleteRadioRequest(track.id)}>
-                          Remover
-                        </Button>
-                      </div>
-                    </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button size="sm" onClick={() => handleUpdateRadioStatus(track.id, 'ADICIONADA_PLAYLIST')}>
+                      <CheckCircle2 size={12} /> Aceitar
+                    </Button>
+                    <Button size="sm" variant="secondary" onClick={() => handleUpdateRadioStatus(track.id, 'RECUSADA')}>
+                      <XCircle size={12} /> Recusar
+                    </Button>
                   </div>
                 </div>
               ))}

@@ -137,6 +137,9 @@ router.delete(
   controller.deleteRadioRequest
 );
 
+// Reprodução de arquivos MP3 da biblioteca geral musicas/.
+router.get('/radio/library/stream', authMiddleware, controller.streamRadioLibraryFile);
+
 // Stream de arquivo .mp3 da pasta musicas/PASSAPORTE/
 router.get(
   '/radio/stream/:passport/:filename',

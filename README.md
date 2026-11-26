@@ -89,7 +89,8 @@ O seed idempotente cadastra:
    - Start Command: `npm run start --workspace=@enxamistas/api`
    - Env vars: `NODE_ENV=production`, `DATABASE_URL`, `DIRECT_URL`, `JWT_SECRET`, `FRONTEND_URL` (URL exata do Vercel, sem barra final), `STORAGE_*`.
    - Em produção (`NODE_ENV=production`), cookies usam `httpOnly: true`, `secure: true`, `sameSite: 'none'` (HTTPS obrigatório para autenticação cross-domain Vercel ↔ Render).
-   - **Cold starts & filesystem efêmero:** Não salve uploads no disco do Render; utilize sempre um bucket S3 compatível (Cloudflare R2, AWS S3, Backblaze B2, Supabase Storage).
+   - **Arquivos da rádio:** MP3s não são enviados ao GitHub (estão excluídos no `.gitignore`). Para a biblioteca sobreviver a deploys, configure um disco persistente no Render, use `RADIO_MUSIC_DIR` apontando para o mount (por exemplo `/var/data/musicas`) e mantenha as pastas por passaporte dentro dele. Sem disco persistente, o filesystem do serviço é efêmero e as músicas desaparecem em novos deploys.
+   - **Outros uploads:** Não salve uploads no disco efêmero do Render; use um bucket S3 compatível (Cloudflare R2, AWS S3, Backblaze B2, Supabase Storage).
 3. **Frontend (Vercel Hobby):**
    - Root Directory: `apps/web` (ou monorepo com install na raiz)
    - Env var: `NEXT_PUBLIC_API_URL="https://sua-api.onrender.com/api"`

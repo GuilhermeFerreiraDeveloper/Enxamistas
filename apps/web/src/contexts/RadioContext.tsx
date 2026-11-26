@@ -60,6 +60,13 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [myRequests, setMyRequests] = useState<RadioTrackItem[]>([]);
   const [myPlaylist, setMyPlaylist] = useState<any>(null);
+  const tracksRef = useRef(tracks);
+  const currentTrackRef = useRef(currentTrack);
+  const failedTrackIdsRef = useRef(new Set<string>());
+  const playTrackRef = useRef<(track: RadioTrackItem) => void>(() => {});
+  const autoNextRef = useRef<(failed?: boolean) => void>(() => {});
+  tracksRef.current = tracks;
+  currentTrackRef.current = currentTrack;
 
   useEffect(() => {
     try {
@@ -72,23 +79,28 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const audio = new Audio();
-    audio.volume = volume;
     audioRef.current = audio;
 
     const onTimeUpdate = () => setProgress(audio.currentTime || 0);
     const onLoadedMetadata = () => setDuration(audio.duration || 0);
+    const onLoadedData = () => {
+      const current = currentTrackRef.current;
+      if (current) failedTrackIdsRef.current.delete(current.id);
+      setAudioError(null);
+    };
     const onEnded = () => {
       setIsPlaying(false);
-      handleAutoNext();
+      autoNextRef.current();
     };
     const onError = () => {
       setIsPlaying(false);
-      setAudioError('Não foi possível reproduzir esta faixa de áudio.');
-      handleAutoNext();
+      setAudioError('Não foi possível reproduzir esta faixa; avançando para a próxima.');
+      autoNextRef.current(true);
     };
 
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('loadedmetadata', onLoadedMetadata);
+    audio.addEventListener('loadeddata', onLoadedData);
     audio.addEventListener('ended', onEnded);
     audio.addEventListener('error', onError);
 
@@ -96,76 +108,80 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
       audio.pause();
       audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+      audio.removeEventListener('loadeddata', onLoadedData);
       audio.removeEventListener('ended', onEnded);
       audio.removeEventListener('error', onError);
+      audioRef.current = null;
     };
-  }, [volume]);
+  }, []);
 
-  const handleAutoNext = () => {
-    if (!tracks.length) return;
-    if (loop) {
-      // Toca a próxima (ou aleatória se shuffle)
-      const idx = currentTrack ? tracks.findIndex((t) => t.id === currentTrack.id) : -1;
-      let next: RadioTrackItem | undefined;
-      if (shuffle) {
-        const candidates = tracks.filter((t) => t.id !== currentTrack?.id);
-        if (candidates.length > 0) {
-          next = candidates[Math.floor(Math.random() * candidates.length)];
-        } else {
-          next = currentTrack ?? undefined;
-        }
-      } else {
-        next = tracks[(idx + 1) % tracks.length];
-      }
-      if (next) playTrack(next);
-    } else {
-      nextTrack();
-    }
-  };
-
-  // Autoplay inicial/automático: sempre que houver faixas e nada estiver tocando, começa a reproduzir
   useEffect(() => {
-    if (!isLoaded && tracks.length > 0 && !currentTrack && !isPlaying) {
-      const randomIndex = Math.floor(Math.random() * tracks.length);
-      playTrack(tracks[randomIndex]);
-      setIsLoaded(true);
-    }
-    // Quando novas faixas são carregadas e nada está tocando, toca automaticamente
-    if (tracks.length > 0 && !currentTrack && !isPlaying && isLoaded) {
-      const randomIndex = Math.floor(Math.random() * tracks.length);
-      playTrack(tracks[randomIndex]);
-    }
-  }, [tracks, isLoaded, currentTrack, isPlaying]);
+    if (audioRef.current) audioRef.current.volume = volume;
+  }, [volume]);
 
   const playTrack = (track: RadioTrackItem) => {
     setAudioError(null);
     setCurrentTrack(track);
-
-    if (track.filePath && track.passport) {
-      const audio = audioRef.current;
-      if (!audio) return;
-      const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(/\/api(\/v1)?\/?$/, '');
-      const streamUrl = `${apiBase}/radio/stream/${track.passport}/${encodeURIComponent(track.filePath)}`;
-      audio.crossOrigin = 'use-credentials';
-      audio.src = streamUrl;
-      audio.play().then(() => setIsPlaying(true)).catch(() => {
-        setIsPlaying(false);
-        setAudioError('Fonte de áudio indisponível.');
-      });
-      return;
-    }
+    currentTrackRef.current = track;
+    setProgress(0);
+    setDuration(0);
 
     const audio = audioRef.current;
     if (!audio) return;
-    const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(/\/api(\/v1)?\/?$/, '');
-    const resolvedUrl = track.url?.startsWith('/api/') ? `${apiBase}${track.url}` : track.url;
+
+    const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(/\/$/, '');
+    const streamUrl = track.url
+      ? track.url.startsWith('/') ? `${apiBase}${track.url}` : track.url
+      : track.filePath && track.passport
+        ? `${apiBase}/radio/stream/${encodeURIComponent(track.passport)}/${encodeURIComponent(track.filePath)}`
+        : '';
+
+    if (!streamUrl) {
+      setIsPlaying(false);
+      setAudioError('Esta faixa não possui um arquivo de áudio disponível.');
+      autoNextRef.current(true);
+      return;
+    }
+
     audio.crossOrigin = 'use-credentials';
-    audio.src = resolvedUrl || '';
+    audio.src = streamUrl;
+    audio.load();
     audio.play().then(() => setIsPlaying(true)).catch(() => {
       setIsPlaying(false);
-      setAudioError('Fonte de áudio indisponível.');
+      setAudioError('O navegador bloqueou a reprodução automática. Use o botão play para iniciar.');
     });
   };
+
+  const handleAutoNext = (failed = false) => {
+    const playlist = tracksRef.current;
+    if (playlist.length === 0) return;
+
+    const current = currentTrackRef.current;
+    if (failed && current) failedTrackIdsRef.current.add(current.id);
+    const currentIndex = current ? playlist.findIndex((track) => track.id === current.id) : -1;
+
+    for (let offset = 1; offset <= playlist.length; offset += 1) {
+      const index = (currentIndex + offset + playlist.length) % playlist.length;
+      const candidate = playlist[index];
+      if (!failedTrackIdsRef.current.has(candidate.id)) {
+        playTrackRef.current(candidate);
+        return;
+      }
+    }
+
+    setIsPlaying(false);
+    setAudioError('Nenhuma faixa da biblioteca pôde ser reproduzida.');
+  };
+
+  playTrackRef.current = playTrack;
+  autoNextRef.current = handleAutoNext;
+
+  useEffect(() => {
+    if (tracks.length > 0 && !currentTrack) {
+      playTrack(tracks[0]);
+      setIsLoaded(true);
+    }
+  }, [tracks, currentTrack]);
 
   const togglePlay = () => {
     if (!currentTrack) return;

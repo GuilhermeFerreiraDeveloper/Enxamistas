@@ -491,37 +491,52 @@ export class InstitutionalService {
   // --- RADIO: SISTEMA DE PEDIDOS DE MÚSICAS ---
 
   async getRadioData() {
-    const tracks = await prisma.radioTrack.findMany({
-      where: { status: 'ADICIONADA_PLAYLIST', filePath: { not: null } },
+    const approvedTracks = await prisma.radioTrack.findMany({
+      where: { status: 'ADICIONADA_PLAYLIST' },
       include: {
         author: { select: { id: true, name: true, avatar: true, user: { select: { passport: true } } } },
       },
       orderBy: { createdAt: 'desc' },
     });
+    const approvedByFile = new Map(
+      approvedTracks
+        .filter((track) => track.filePath)
+        .map((track) => [`${track.passport}/${track.filePath}`.replace(/\\/g, '/'), track])
+    );
+    const musicRoot = getRadioMusicRoot();
+    const libraryFiles: string[] = [];
 
-    const playlists = await prisma.radioPlaylist.findMany({
-      include: {
-        profile: { select: { id: true, name: true, user: { select: { passport: true } } } },
-        tracks: {
-          include: {
-            track: {
-              select: {
-                id: true,
-                title: true,
-                artist: true,
-                filePath: true,
-                passport: true,
-                createdAt: true,
-              },
-            },
-          },
-          orderBy: { order: 'asc' },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
+    const scanDirectory = (directory: string, relativeDirectory = '') => {
+      if (!fs.existsSync(directory)) return;
+      for (const entry of fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+        const relativePath = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name;
+        const absolutePath = path.join(directory, entry.name);
+        if (entry.isDirectory()) {
+          scanDirectory(absolutePath, relativePath);
+        } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.mp3')) {
+          libraryFiles.push(relativePath);
+        }
+      }
+    };
+
+    scanDirectory(musicRoot);
+
+    const tracks = libraryFiles.map((relativePath) => {
+      const registeredTrack = approvedByFile.get(relativePath);
+      const filename = path.posix.basename(relativePath);
+      return {
+        id: relativePath,
+        title: registeredTrack?.title || filename.replace(/\.mp3$/i, ''),
+        artist: registeredTrack?.artist || 'Biblioteca da rádio',
+        passport: relativePath.includes('/') ? relativePath.split('/')[0] : null,
+        filePath: relativePath,
+        url: `/radio/library/stream?file=${encodeURIComponent(relativePath)}`,
+        status: 'ADICIONADA_PLAYLIST',
+        author: registeredTrack?.author || null,
+      };
     });
 
-    return { tracks, playlists };
+    return { tracks };
   }
 
   async createRadioRequest(
@@ -557,6 +572,7 @@ export class InstitutionalService {
     }
 
     const passport = profile.user.passport;
+    fs.mkdirSync(path.resolve(getRadioMusicRoot(), passport), { recursive: true });
 
     let playlist = await prisma.radioPlaylist.findUnique({
       where: { profileId: actorProfileId },
@@ -634,6 +650,7 @@ export class InstitutionalService {
 
   async listAllRadioRequests() {
     return prisma.radioTrack.findMany({
+      where: { status: { in: ['SOLICITADA', 'EM_ANALISE'] } },
       include: {
         author: { select: { id: true, name: true, avatar: true, user: { select: { passport: true } } } },
         reviewedBy: { select: { id: true, name: true } },
@@ -644,58 +661,32 @@ export class InstitutionalService {
 
   async updateRadioRequestStatus(
     id: string,
-    status: 'SOLICITADA' | 'EM_ANALISE' | 'ADICIONADA_PLAYLIST' | 'RECUSADA',
+    status: 'ADICIONADA_PLAYLIST' | 'RECUSADA',
     actorProfileId: string,
     actorUserId: string,
-    rejectionReason?: string,
-    filePath?: string
+    rejectionReason?: string
   ) {
     const existing = await prisma.radioTrack.findUnique({
       where: { id },
-      include: { author: { select: { user: { select: { passport: true } } } } },
+      include: { author: { select: { id: true, name: true, user: { select: { passport: true } } } } },
     });
 
     if (!existing) {
       throw new AppError('Pedido não encontrado.', 404, 'REQUEST_NOT_FOUND');
     }
 
-    if (status === 'RECUSADA' && !rejectionReason?.trim()) {
-      throw new AppError('Informe o motivo da recusa.', 400, 'REJECTION_REASON_REQUIRED');
+    if (!['SOLICITADA', 'EM_ANALISE'].includes(existing.status)) {
+      throw new AppError('Este pedido já foi decidido.', 409, 'REQUEST_ALREADY_REVIEWED');
     }
-
-    if (status === 'ADICIONADA_PLAYLIST') {
-      if (!filePath?.trim()) {
-        throw new AppError('Informe o nome do arquivo MP3 adicionado manualmente.', 400, 'FILE_PATH_REQUIRED');
-      }
-
-      const safeName = path.basename(filePath.trim());
-      if (safeName !== filePath.trim() || !safeName.toLowerCase().endsWith('.mp3')) {
-        throw new AppError('O arquivo deve ser informado apenas pelo nome e terminar em .mp3.', 400, 'INVALID_FILE_PATH');
-      }
-
-      const passport = existing.passport || existing.author.user.passport;
-      const passportDir = path.resolve(getRadioMusicRoot(), passport);
-      fs.mkdirSync(passportDir, { recursive: true });
-      const fullPath = path.resolve(passportDir, safeName);
-
-      if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) {
-        throw new AppError(`Arquivo não encontrado em musicas/${passport}/${safeName}.`, 404, 'AUDIO_FILE_NOT_FOUND');
-      }
-    }
-
-    const updateData: any = {
-      status,
-      reviewedById: actorProfileId,
-      reviewedAt: new Date(),
-      rejectionReason: status === 'RECUSADA' ? rejectionReason?.trim() || null : null,
-      filePath: status === 'ADICIONADA_PLAYLIST' ? path.basename(filePath!.trim()) : status === 'RECUSADA' ? null : undefined,
-    };
-
-    if (updateData.filePath === undefined) delete updateData.filePath;
 
     const track = await prisma.radioTrack.update({
       where: { id },
-      data: updateData,
+      data: {
+        status,
+        reviewedById: actorProfileId,
+        reviewedAt: new Date(),
+        rejectionReason: status === 'RECUSADA' ? rejectionReason?.trim() || null : null,
+      },
       include: {
         author: { select: { id: true, name: true, user: { select: { passport: true } } } },
         reviewedBy: { select: { id: true, name: true } },
@@ -718,38 +709,39 @@ export class InstitutionalService {
         throw new AppError('Playlist do membro não encontrada.', 404, 'PLAYLIST_NOT_FOUND');
       }
 
-      {
-        const lastOrder = await prisma.radioPlaylistTrack.findFirst({
-          where: { playlistId: playlist.id },
-          orderBy: { order: 'desc' },
-          select: { order: true },
-        });
+      const lastOrder = await prisma.radioPlaylistTrack.findFirst({
+        where: { playlistId: playlist.id },
+        orderBy: { order: 'desc' },
+        select: { order: true },
+      });
 
-        await prisma.radioPlaylistTrack.upsert({
-          where: {
-            playlistId_trackId: {
-              playlistId: playlist.id,
-              trackId: track.id,
-            },
-          },
-          update: {},
-          create: {
+      await prisma.radioPlaylistTrack.upsert({
+        where: {
+          playlistId_trackId: {
             playlistId: playlist.id,
             trackId: track.id,
-            order: (lastOrder?.order || 0) + 1,
           },
-        });
-      }
-    } else {
-      const playlist = await prisma.radioPlaylist.findUnique({
-        where: { profileId: track.authorId },
+        },
+        update: {},
+        create: {
+          playlistId: playlist.id,
+          trackId: track.id,
+          order: (lastOrder?.order || 0) + 1,
+        },
       });
-      if (playlist) {
-        await prisma.radioPlaylistTrack.deleteMany({
-          where: { playlistId: playlist.id, trackId: track.id },
-        });
-      }
     }
+
+    await prisma.notification.create({
+      data: {
+        profileId: track.authorId,
+        title: status === 'ADICIONADA_PLAYLIST' ? 'Pedido de música aceito' : 'Pedido de música recusado',
+        content: status === 'ADICIONADA_PLAYLIST'
+          ? `A Staff aceitou o pedido de “${track.title}”${track.artist ? `, de ${track.artist}` : ''}.`
+          : `A Staff recusou o pedido de “${track.title}”${track.artist ? `, de ${track.artist}` : ''}.${rejectionReason?.trim() ? ` Motivo: ${rejectionReason.trim()}` : ''}`,
+        link: '/radio',
+        type: 'ADMIN',
+      },
+    });
 
     return track;
   }
@@ -770,6 +762,41 @@ export class InstitutionalService {
       id: track.id,
       title: track.title,
     });
+  }
+
+  async getRadioLibraryFile(relativePath: string) {
+    if (!relativePath || relativePath.includes('\\') || path.posix.isAbsolute(relativePath)) {
+      throw new AppError('Caminho da música inválido.', 400, 'INVALID_AUDIO_PATH');
+    }
+
+    const normalizedPath = path.posix.normalize(relativePath);
+    if (normalizedPath !== relativePath || normalizedPath === '..' || normalizedPath.startsWith('../')) {
+      throw new AppError('Caminho da música inválido.', 400, 'INVALID_AUDIO_PATH');
+    }
+
+    if (!normalizedPath.toLowerCase().endsWith('.mp3')) {
+      throw new AppError('A biblioteca aceita apenas arquivos MP3.', 400, 'INVALID_AUDIO_TYPE');
+    }
+
+    const root = path.resolve(getRadioMusicRoot());
+    const filePath = path.resolve(root, ...normalizedPath.split('/'));
+    const relativeToRoot = path.relative(root, filePath);
+    if (relativeToRoot === '..' || relativeToRoot.startsWith(`..${path.sep}`) || path.isAbsolute(relativeToRoot)) {
+      throw new AppError('Caminho da música inválido.', 400, 'INVALID_AUDIO_PATH');
+    }
+
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      throw new AppError('Arquivo de áudio não encontrado.', 404, 'AUDIO_FILE_NOT_FOUND');
+    }
+
+    const realRoot = fs.realpathSync(root);
+    const realFilePath = fs.realpathSync(filePath);
+    const realRelativePath = path.relative(realRoot, realFilePath);
+    if (realRelativePath === '..' || realRelativePath.startsWith(`..${path.sep}`) || path.isAbsolute(realRelativePath)) {
+      throw new AppError('Caminho da música inválido.', 400, 'INVALID_AUDIO_PATH');
+    }
+
+    return realFilePath;
   }
 
   async getAuthorizedRadioFile(passport: string, filename: string) {

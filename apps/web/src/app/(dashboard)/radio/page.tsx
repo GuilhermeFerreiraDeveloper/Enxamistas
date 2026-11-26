@@ -9,6 +9,10 @@ import { useRadio, RadioTrackItem } from '@/contexts/RadioContext';
 import { Button } from '@/components/ui/Button';
 import { RoleHierarchy, UserRole } from '@enxamistas/shared';
 
+function normalizeTrackName(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
 export default function RadioPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -58,6 +62,14 @@ export default function RadioPage() {
     loadRadio();
     loadMyRequests();
     loadMyPlaylist();
+
+    const refreshInterval = window.setInterval(() => {
+      loadRadio();
+      loadMyRequests();
+      loadMyPlaylist();
+    }, 30000);
+
+    return () => window.clearInterval(refreshInterval);
   }, []);
 
   const handleRequestMusic = async (e: React.FormEvent) => {
@@ -101,7 +113,7 @@ export default function RadioPage() {
             Rádio Enxamistas
           </h1>
           <p className="text-sm text-white/50">
-            O player permanece ativo durante sua navegação pelo portal. Reprodução individual sob demanda.
+            Reprodução contínua com todas as músicas MP3 disponíveis na biblioteca da rádio.
           </p>
         </div>
         <div className="flex gap-2">
@@ -132,7 +144,7 @@ export default function RadioPage() {
         <div className="space-y-3">
           {tracks.length === 0 ? (
             <div className="p-12 bg-graphite/40 border border-white/5 rounded-sm text-center text-sm text-white/40">
-              Nenhuma faixa autorizada na rádio ainda.
+              Nenhum arquivo MP3 encontrado na biblioteca da rádio.
             </div>
           ) : (
             <div className="space-y-2">
@@ -242,7 +254,16 @@ export default function RadioPage() {
           ) : (
             <div className="space-y-2">
               {myPlaylist.tracks.map((pt: any) => {
-                const t = pt.track;
+                const t = pt.track as RadioTrackItem;
+                const normalizedTitle = normalizeTrackName(t.title);
+                const normalizedArtist = normalizeTrackName(t.artist);
+                const libraryTrack = tracks.find((track) => {
+                  if (track.passport !== t.passport) return false;
+                  const filename = normalizeTrackName(track.title);
+                  return filename === normalizedTitle ||
+                    (filename.includes(normalizedTitle) && filename.includes(normalizedArtist));
+                });
+                const playableTrack = libraryTrack || (t.filePath && t.passport ? t : null);
                 return (
                   <div
                     key={t.id}
@@ -251,14 +272,18 @@ export default function RadioPage() {
                     <div className="flex items-center gap-3 min-w-0">
                       <button
                         type="button"
-                        onClick={() => playTrack(t as RadioTrackItem)}
-                        className="w-8 h-8 rounded-full bg-royal-gold text-obsidian flex items-center justify-center shrink-0"
+                        disabled={!playableTrack}
+                        onClick={() => playableTrack && playTrack(playableTrack)}
+                        className="w-8 h-8 rounded-full bg-royal-gold text-obsidian flex items-center justify-center shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Play size={14} />
                       </button>
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-white truncate">{t.title}</p>
                         <p className="text-xs text-white/50 truncate">{t.artist}</p>
+                        {!playableTrack && (
+                          <p className="text-[10px] text-white/35">Aguardando o MP3 correspondente na pasta do passaporte.</p>
+                        )}
                       </div>
                     </div>
                     <div className="text-xs text-white/40">{pt.order}°</div>

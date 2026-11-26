@@ -1,6 +1,9 @@
 const { describe, it, beforeEach } = require('node:test');
 const assert = require('node:assert/strict');
 const argon2 = require('argon2');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
 const shared = require('@enxamistas/shared');
 const { prisma } = require('../dist/lib/prisma.js');
@@ -228,67 +231,136 @@ describe('Enxamistas Critical Suite', () => {
   });
 
   it('Radio request service binds the authenticated profile/passport and rejects invalid URLs', async () => {
-    prisma.profile.findUnique = async () => ({
-      id: 'profile-1',
-      user: { passport: '123456' },
-    });
-    prisma.radioPlaylist.findUnique = async () => ({ id: 'playlist-1', profileId: 'profile-1' });
-    let created = null;
-    prisma.radioTrack.create = async (args) => {
-      created = args.data;
-      return { id: 'track-1', ...args.data };
-    };
+    const musicRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'enxamistas-radio-request-'));
+    const previousMusicDir = process.env.RADIO_MUSIC_DIR;
+    process.env.RADIO_MUSIC_DIR = musicRoot;
 
-    await institutionalService.createRadioRequest(
-      { title: 'Musica Teste', artist: 'Artista Teste', referenceUrl: 'https://music.example.com/song' },
-      'profile-1',
-      'user-1'
-    );
+    try {
+      prisma.profile.findUnique = async () => ({
+        id: 'profile-1',
+        user: { passport: '123456' },
+      });
+      prisma.radioPlaylist.findUnique = async () => ({ id: 'playlist-1', profileId: 'profile-1' });
+      let created = null;
+      prisma.radioTrack.create = async (args) => {
+        created = args.data;
+        return { id: 'track-1', ...args.data };
+      };
 
-    assert.equal(created.authorId, 'profile-1');
-    assert.equal(created.passport, '123456');
-    assert.equal(created.status, 'SOLICITADA');
-
-    await assert.rejects(
-      () => institutionalService.createRadioRequest(
-        { title: 'Musica Teste', artist: 'Artista Teste', referenceUrl: 'ftp://example.com/song' },
+      await institutionalService.createRadioRequest(
+        { title: 'Musica Teste', artist: 'Artista Teste', referenceUrl: 'https://music.example.com/song' },
         'profile-1',
         'user-1'
-      ),
-      /URL válida/
-    );
+      );
+
+      assert.equal(created.authorId, 'profile-1');
+      assert.equal(created.passport, '123456');
+      assert.equal(created.status, 'SOLICITADA');
+      assert.equal(fs.existsSync(path.join(musicRoot, '123456')), true);
+
+      await assert.rejects(
+        () => institutionalService.createRadioRequest(
+          { title: 'Musica Teste', artist: 'Artista Teste', referenceUrl: 'ftp://example.com/song' },
+          'profile-1',
+          'user-1'
+        ),
+        /URL válida/
+      );
+    } finally {
+      if (previousMusicDir === undefined) delete process.env.RADIO_MUSIC_DIR;
+      else process.env.RADIO_MUSIC_DIR = previousMusicDir;
+      fs.rmSync(musicRoot, { recursive: true, force: true });
+    }
   });
 
-  it('Radio request review requires a rejection reason and staff review identity', async () => {
+  it('Radio staff decisions update the request and notify only its member', async () => {
+    let requestStatus = 'SOLICITADA';
+    let updated = null;
+    const notifications = [];
     prisma.radioTrack.findUnique = async () => ({
       id: 'track-1',
       passport: '123456',
       authorId: 'profile-1',
-      author: { user: { passport: '123456' } },
+      status: requestStatus,
       title: 'Musica Teste',
+      artist: 'Artista Teste',
+      author: { id: 'profile-1', name: 'Membro', user: { passport: '123456' } },
     });
+    prisma.radioTrack.update = async (args) => {
+      updated = args.data;
+      requestStatus = args.data.status;
+      return {
+        id: 'track-1',
+        authorId: 'profile-1',
+        title: 'Musica Teste',
+        artist: 'Artista Teste',
+        ...args.data,
+      };
+    };
+    prisma.radioPlaylist.findUnique = async () => ({ id: 'playlist-1', profileId: 'profile-1' });
+    prisma.radioPlaylistTrack.findFirst = async () => null;
+    prisma.radioPlaylistTrack.upsert = async () => ({ id: 'playlist-track-1' });
+    prisma.notification.create = async (args) => {
+      notifications.push(args.data);
+      return { id: `notif-${notifications.length}` };
+    };
+
+    await institutionalService.updateRadioRequestStatus(
+      'track-1', 'ADICIONADA_PLAYLIST', 'staff-profile', 'staff-user'
+    );
+    assert.equal(updated.reviewedById, 'staff-profile');
+    assert.equal(updated.status, 'ADICIONADA_PLAYLIST');
+    assert.equal(notifications[0].profileId, 'profile-1');
+    assert.match(notifications[0].title, /aceito/);
+
+    requestStatus = 'SOLICITADA';
+    await institutionalService.updateRadioRequestStatus(
+      'track-1', 'RECUSADA', 'staff-profile', 'staff-user', 'Direitos autorais'
+    );
+    assert.equal(updated.status, 'RECUSADA');
+    assert.equal(updated.rejectionReason, 'Direitos autorais');
+    assert.equal(notifications[1].profileId, 'profile-1');
+    assert.match(notifications[1].content, /Direitos autorais/);
 
     await assert.rejects(
       () => institutionalService.updateRadioRequestStatus(
-        'track-1', 'RECUSADA', 'staff-profile', 'staff-user', ''
+        'track-1', 'RECUSADA', 'staff-profile', 'staff-user'
       ),
-      /motivo da recusa/
+      /já foi decidido/
     );
+  });
 
-    let updated = null;
-    prisma.radioTrack.update = async (args) => {
-      updated = args.data;
-      return { id: 'track-1', authorId: 'profile-1', title: 'Musica Teste', ...args.data };
-    };
-    prisma.radioPlaylist.findUnique = async () => ({ id: 'playlist-1', profileId: 'profile-1' });
-    prisma.radioPlaylistTrack.deleteMany = async () => ({ count: 1 });
+  it('Radio library recursively lists MP3 files and rejects paths outside its root', async () => {
+    const musicRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'enxamistas-radio-'));
+    const previousMusicDir = process.env.RADIO_MUSIC_DIR;
+    process.env.RADIO_MUSIC_DIR = musicRoot;
+    fs.mkdirSync(path.join(musicRoot, '4796'), { recursive: true });
+    fs.mkdirSync(path.join(musicRoot, 'outro-membro'), { recursive: true });
+    fs.writeFileSync(path.join(musicRoot, '4796', 'Sunflower.mp3'), 'audio');
+    fs.writeFileSync(path.join(musicRoot, 'outro-membro', 'outra.MP3'), 'audio');
+    fs.writeFileSync(path.join(musicRoot, 'nao-audio.txt'), 'ignored');
+    prisma.radioTrack.findMany = async () => [];
 
-    await institutionalService.updateRadioRequestStatus(
-      'track-1', 'RECUSADA', 'staff-profile', 'staff-user', 'Licença não autorizada'
-    );
-
-    assert.equal(updated.reviewedById, 'staff-profile');
-    assert.equal(updated.rejectionReason, 'Licença não autorizada');
+    try {
+      const result = await institutionalService.getRadioData();
+      assert.deepEqual(result.tracks.map((track) => track.filePath), [
+        '4796/Sunflower.mp3',
+        'outro-membro/outra.MP3',
+      ]);
+      assert.match(result.tracks[0].url, /radio\/library\/stream/);
+      assert.equal(
+        await institutionalService.getRadioLibraryFile('4796/Sunflower.mp3'),
+        path.join(musicRoot, '4796', 'Sunflower.mp3')
+      );
+      await assert.rejects(
+        () => institutionalService.getRadioLibraryFile('../secret.mp3'),
+        /Caminho da música inválido/
+      );
+    } finally {
+      if (previousMusicDir === undefined) delete process.env.RADIO_MUSIC_DIR;
+      else process.env.RADIO_MUSIC_DIR = previousMusicDir;
+      fs.rmSync(musicRoot, { recursive: true, force: true });
+    }
   });
 
   it('CinematicService validates YouTube links, video signatures, and 20 fraternity rules', async () => {
