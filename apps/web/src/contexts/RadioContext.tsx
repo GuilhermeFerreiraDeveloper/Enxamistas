@@ -32,6 +32,11 @@ interface RadioContextType {
   seekTo: (sec: number) => void;
   toggleFavorite: (trackId: string) => void;
   isYoutube: boolean;
+  shuffle: boolean;
+  toggleShuffle: () => void;
+  loop: boolean;
+  toggleLoop: () => void;
+  isLoaded: boolean;
 }
 
 const RadioContext = createContext<RadioContextType>({} as RadioContextType);
@@ -48,6 +53,9 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   const [duration, setDuration] = useState(0);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [shuffle, setShuffle] = useState(false);
+  const [loop, setLoop] = useState(true);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     try {
@@ -65,10 +73,14 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
 
     const onTimeUpdate = () => setProgress(audio.currentTime || 0);
     const onLoadedMetadata = () => setDuration(audio.duration || 0);
-    const onEnded = () => setIsPlaying(false);
+    const onEnded = () => {
+      setIsPlaying(false);
+      handleAutoNext();
+    };
     const onError = () => {
       setIsPlaying(false);
       setAudioError('Não foi possível reproduzir esta faixa de áudio.');
+      handleAutoNext();
     };
 
     audio.addEventListener('timeupdate', onTimeUpdate);
@@ -131,6 +143,7 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
             setAudioError(null);
           } else if (state === (window as any).YT.PlayerState.ENDED) {
             setIsPlaying(false);
+            handleAutoNext();
           } else if (state === (window as any).YT.PlayerState.PAUSED) {
             setIsPlaying(false);
           }
@@ -151,6 +164,37 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
       youtubePlayerRef.current = null;
     };
   }, [youtubeApiReady, currentTrack, isPlaying, volume]);
+
+  const handleAutoNext = () => {
+    if (!tracks.length) return;
+    if (loop) {
+      // Toca a próxima (ou aleatória se shuffle)
+      const idx = currentTrack ? tracks.findIndex((t) => t.id === currentTrack.id) : -1;
+      let next: RadioTrackItem | undefined;
+      if (shuffle) {
+        const candidates = tracks.filter((t) => t.id !== currentTrack?.id);
+        if (candidates.length > 0) {
+          next = candidates[Math.floor(Math.random() * candidates.length)];
+        } else {
+          next = currentTrack ?? undefined;
+        }
+      } else {
+        next = tracks[(idx + 1) % tracks.length];
+      }
+      if (next) playTrack(next);
+    } else {
+      nextTrack();
+    }
+  };
+
+  // Autoplay inicial aleatório quando as tracks carregam e não há nada tocando
+  useEffect(() => {
+    if (!isLoaded && tracks.length > 0 && !currentTrack && !isPlaying) {
+      const randomIndex = Math.floor(Math.random() * tracks.length);
+      playTrack(tracks[randomIndex]);
+      setIsLoaded(true);
+    }
+  }, [tracks, isLoaded, currentTrack, isPlaying]);
 
   const playTrack = (track: RadioTrackItem) => {
     setAudioError(null);
@@ -255,6 +299,9 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const toggleShuffle = () => setShuffle((prev) => !prev);
+  const toggleLoop = () => setLoop((prev) => !prev);
+
   const isYoutube = currentTrack?.sourceType === 'YOUTUBE';
 
   return (
@@ -277,6 +324,11 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
         seekTo,
         toggleFavorite,
         isYoutube,
+        shuffle,
+        toggleShuffle,
+        loop,
+        toggleLoop,
+        isLoaded,
       }}
     >
       {children}
