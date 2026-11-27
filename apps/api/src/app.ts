@@ -30,11 +30,11 @@ app.use(
   })
 );
 
-app.use('/api/uploads', uploadRoutes);
-app.use('/api/v1/uploads', uploadRoutes);
-
 app.use(express.json({ limit: '12mb' }));
 app.use(cookieParser());
+
+app.use('/api/uploads', uploadRoutes);
+app.use('/api/v1/uploads', uploadRoutes);
 
 function buildApiRouter() {
   const api = Router();
