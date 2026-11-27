@@ -26,6 +26,7 @@ import {
   ShieldAlert,
   UserCircle,
   Film,
+  Image,
   ScrollText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -85,6 +86,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       group: 'Comunidade',
       items: [
         { name: 'Cinemática', href: '/cinematica', icon: Film },
+        { name: 'Galeria da Colmeia', href: '/galeria', icon: Image },
         { name: 'História & Regras', href: '/lore', icon: ScrollText },
         { name: 'Membros', href: '/membros', icon: Users },
         { name: 'Meu Perfil', href: '/perfil', icon: UserCircle },
@@ -294,6 +296,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span>© 2026 ENXAMISTAS ORGANIZAÇÃO</span>
             <div className="flex gap-6">
               <Link href="/lore" className="hover:text-royal-gold">Lore</Link>
+              <Link href="/galeria" className="hover:text-royal-gold">Galeria</Link>
               <Link href="/mansoes" className="hover:text-royal-gold">Mansões</Link>
               <Link href="/projetos" className="hover:text-royal-gold">Projetos</Link>
               <Link href="/livro-de-visitas" className="hover:text-royal-gold">Livro de Visitas</Link>

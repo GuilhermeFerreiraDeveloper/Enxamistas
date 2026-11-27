@@ -117,6 +117,7 @@ model Profile {
   mansionKeyRequests     MansionKeyRequest[]
   monthlyHighlights      MonthlyHighlight[]
   cinematics             Cinematic[]
+  galleryPhotos           GalleryPhoto[]
   radioPlaylist          RadioPlaylist?
   radioTracksAuthor      RadioTrack[]     @relation("RadioTrackAuthor")
   radioTracksReviewer    RadioTrack[]     @relation("RadioTrackReviewer")
@@ -165,6 +166,18 @@ model ClassSchedule {
   course    Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
   dayOfWeek Int    // 0-6 (Sunday-Saturday)
   startTime String // "HH:MM"
+}
+
+// COMMUNITY PHOTO GALLERY
+model GalleryPhoto {
+  id        String   @id @default(uuid())
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  imageUrl  String
+  caption   String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt, id])
 }
 
 // FEED MODULE

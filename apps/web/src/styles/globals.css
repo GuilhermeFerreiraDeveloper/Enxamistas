@@ -56,3 +56,101 @@ body {
 .honeycomb-glow {
   background: radial-gradient(circle at 50% 0%, rgba(230, 168, 46, 0.14), transparent 65%);
 }
+
+.hive-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 1.15rem;
+}
+
+.hive-gallery-cell {
+  position: relative;
+  aspect-ratio: 0.92;
+  min-width: 0;
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.28));
+  transition: transform 250ms ease, filter 250ms ease;
+}
+
+.hive-gallery-cell:nth-child(3n + 2) {
+  transform: translateY(1.25rem);
+}
+
+.hive-gallery-cell:hover {
+  z-index: 1;
+  transform: translateY(-0.2rem) scale(1.025);
+  filter: drop-shadow(0 14px 28px rgba(230, 168, 46, 0.2));
+}
+
+.hive-gallery-photo {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #1b1c1d;
+  clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%);
+  text-align: left;
+}
+
+.hive-gallery-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 500ms ease;
+}
+
+.hive-gallery-photo:hover img {
+  transform: scale(1.08);
+}
+
+.hive-gallery-shade {
+  position: absolute;
+  inset: 30% 0 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+}
+
+.hive-gallery-caption {
+  position: absolute;
+  right: 18%;
+  bottom: 14%;
+  left: 18%;
+  pointer-events: none;
+}
+
+.hive-gallery-delete {
+  position: absolute;
+  top: 13%;
+  right: 13%;
+  z-index: 2;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.65);
+  color: white;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.hive-gallery-delete:hover {
+  background: rgba(127, 29, 29, 0.9);
+  color: #fecaca;
+}
+
+@media (max-width: 640px) {
+  .hive-gallery-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+  }
+
+  .hive-gallery-cell:nth-child(3n + 2) {
+    transform: none;
+  }
+
+  .hive-gallery-caption {
+    right: 19%;
+    bottom: 15%;
+    left: 19%;
+  }
+}

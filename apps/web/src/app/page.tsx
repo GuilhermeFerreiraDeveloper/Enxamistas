@@ -12,6 +12,7 @@ import {
   ExternalLink,
   Clock,
   Film,
+  Image,
   ScrollText,
 } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
@@ -127,7 +128,7 @@ export default function Home() {
 
       {/* Pillars */}
       <section className="relative z-10 py-20 px-6 md:px-16 border-t border-royal-gold/10 bg-black/25">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           {[
             {
               title: 'FRATERNIDADE',
@@ -152,6 +153,12 @@ export default function Home() {
               desc: 'Mansões da colmeia, projetos comunitários, livro de visitas e espaços compartilhados com harmonia.',
               icon: Users,
               href: '/mansoes',
+            },
+            {
+              title: 'GALERIA',
+              desc: 'Memórias compartilhadas pelos membros em um favo de fotos que cresce com a comunidade.',
+              icon: Image,
+              href: '/galeria',
             },
           ].map((pillar) => (
             <Link key={pillar.title} href={pillar.href} className="group card-honeycomb block">

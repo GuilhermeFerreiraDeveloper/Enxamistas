@@ -19,6 +19,76 @@ const authorSelect = {
 };
 
 export class FeedService {
+  async getPublicGallery(viewerProfileId?: string, page = 1, limit = 30) {
+    const pageNum = Math.max(1, page);
+    const limitNum = Math.min(50, Math.max(1, limit));
+    const [photos, total] = await prisma.$transaction([
+      prisma.galleryPhoto.findMany({
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
+        include: {
+          profile: { select: { id: true, name: true, avatar: true } },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      }),
+      prisma.galleryPhoto.count(),
+    ]);
+
+    return {
+      items: photos.map((photo) => ({
+        id: photo.id,
+        caption: photo.caption,
+        authorId: photo.profileId,
+        author: photo.profile,
+        image: photo.imageUrl,
+        createdAt: photo.createdAt,
+        isMine: photo.profileId === viewerProfileId,
+      })),
+      total,
+      page: pageNum,
+      hasMore: pageNum * limitNum < total,
+    };
+  }
+
+  async createGalleryPhoto(profileId: string, data: { imageUrl: string; caption?: string }) {
+    if (!data || typeof data.imageUrl !== 'string' || !data.imageUrl.trim() || data.imageUrl.length > 2048) {
+      throw new AppError('Envie uma imagem válida para a galeria.', 400, 'INVALID_GALLERY_IMAGE');
+    }
+    if (data.caption !== undefined && (typeof data.caption !== 'string' || data.caption.length > 300)) {
+      throw new AppError('A legenda deve ter até 300 caracteres.', 400, 'INVALID_GALLERY_CAPTION');
+    }
+
+    const imageUrl = data.imageUrl.trim();
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(imageUrl);
+    } catch {
+      throw new AppError('A imagem enviada possui uma URL inválida.', 400, 'INVALID_GALLERY_IMAGE');
+    }
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      throw new AppError('A imagem enviada possui uma URL inválida.', 400, 'INVALID_GALLERY_IMAGE');
+    }
+
+    return prisma.galleryPhoto.create({
+      data: {
+        profileId,
+        imageUrl,
+        caption: data.caption?.trim() || null,
+      },
+      include: { profile: { select: { id: true, name: true, avatar: true } } },
+    });
+  }
+
+  async deleteGalleryPhoto(photoId: string, actorProfileId: string) {
+    const photo = await prisma.galleryPhoto.findUnique({ where: { id: photoId } });
+    if (!photo) throw new AppError('Foto não encontrada na galeria.', 404, 'GALLERY_PHOTO_NOT_FOUND');
+    if (photo.profileId !== actorProfileId) {
+      throw new AppError('Você só pode remover suas próprias fotos.', 403, 'FORBIDDEN');
+    }
+
+    await prisma.galleryPhoto.delete({ where: { id: photoId } });
+  }
+
   async createPost(authorId: string, data: PostInput) {
     return prisma.post.create({
       data: {

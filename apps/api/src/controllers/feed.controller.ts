@@ -6,6 +6,36 @@ import { AppError } from '../errors/AppError';
 const feedService = new FeedService();
 
 export class FeedController {
+  async getPublicGallery(req: any, res: Response, next: NextFunction) {
+    try {
+      const page = parseInt(req.query.page as string, 10) || 1;
+      const gallery = await feedService.getPublicGallery(req.user?.profile?.id, page);
+      res.status(200).json(gallery);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async createGalleryPhoto(req: any, res: Response, next: NextFunction) {
+    try {
+      if (!req.user?.profile?.id) throw new AppError('Perfil necessário.', 403, 'PROFILE_REQUIRED');
+      const photo = await feedService.createGalleryPhoto(req.user.profile.id, req.body);
+      res.status(201).json(photo);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteGalleryPhoto(req: any, res: Response, next: NextFunction) {
+    try {
+      if (!req.user?.profile?.id) throw new AppError('Perfil necessário.', 403, 'PROFILE_REQUIRED');
+      await feedService.deleteGalleryPhoto(req.params.photoId, req.user.profile.id);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async createPost(req: any, res: Response, next: NextFunction) {
     try {
       if (!req.user?.profile?.id) throw new AppError('Perfil necessário.', 403, 'PROFILE_REQUIRED');

@@ -1,10 +1,14 @@
 import { Router } from 'express';
 import { FeedController } from '../controllers/feed.controller';
-import { authMiddleware } from '../middlewares/auth.middleware';
+import { authMiddleware, optionalAuthMiddleware } from '../middlewares/auth.middleware';
 import { rateLimit } from '../middlewares/rateLimit.middleware';
 
 const router = Router();
 const feedController = new FeedController();
+
+router.get('/gallery', optionalAuthMiddleware, feedController.getPublicGallery);
+router.post('/gallery', authMiddleware, rateLimit({ windowMs: 300_000, max: 10, keyPrefix: 'gallery_photo' }), feedController.createGalleryPhoto);
+router.delete('/gallery/:photoId', authMiddleware, feedController.deleteGalleryPhoto);
 
 router.get('/', authMiddleware, feedController.getPosts);
 router.post(
