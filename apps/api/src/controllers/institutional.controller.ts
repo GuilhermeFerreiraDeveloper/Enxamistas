@@ -5,7 +5,7 @@ import { RoleHierarchy, UserRole } from '@enxamistas/shared';
 
 const service = new InstitutionalService();
 
-function streamAudioFile(filePath: string, req: Request, res: Response, next: NextFunction) {
+function streamAudioFile(filePath: string, req: Request, res: Response, next: NextFunction, isPublic = false) {
   const fs = require('fs');
   const stat = fs.statSync(filePath);
   const totalSize = stat.size;
@@ -41,7 +41,7 @@ function streamAudioFile(filePath: string, req: Request, res: Response, next: Ne
     res.setHeader('Content-Length', String(end - start + 1));
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Content-Type', mimeType);
-    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.setHeader('Cache-Control', isPublic ? 'public, max-age=3600' : 'private, max-age=3600');
     return stream({ start, end });
   }
 
@@ -49,7 +49,7 @@ function streamAudioFile(filePath: string, req: Request, res: Response, next: Ne
   res.setHeader('Content-Length', String(totalSize));
   res.setHeader('Accept-Ranges', 'bytes');
   res.setHeader('Content-Type', mimeType);
-  res.setHeader('Cache-Control', 'private, max-age=3600');
+  res.setHeader('Cache-Control', isPublic ? 'public, max-age=3600' : 'private, max-age=3600');
   return stream();
 }
 
@@ -290,6 +290,23 @@ export class InstitutionalController {
   }
 
   // Radio: Sistema de Pedidos de Músicas
+  async getPublicRadio(_req: Request, res: Response, next: NextFunction) {
+    try {
+      res.status(200).json(await service.getPublicRadioData());
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async streamPublicRadioFile(req: Request, res: Response, next: NextFunction) {
+    try {
+      const filePath = await service.getPublicRadioLibraryFile(req.params.trackToken);
+      streamAudioFile(filePath, req, res, next, true);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getRadio(_req: Request, res: Response, next: NextFunction) {
     try {
       res.status(200).json(await service.getRadioData());

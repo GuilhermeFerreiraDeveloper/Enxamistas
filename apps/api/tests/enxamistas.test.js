@@ -4,6 +4,7 @@ const argon2 = require('argon2');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { createHmac } = require('node:crypto');
 
 const shared = require('@enxamistas/shared');
 const { prisma } = require('../dist/lib/prisma.js');
@@ -647,7 +648,7 @@ describe('Enxamistas Critical Suite', () => {
       const approvedRadioTrack = radioLibrary.tracks.find((item) => item.filePath === selectedFilePath);
       assert.equal(approvedRadioTrack.title, 'Musica Teste');
       assert.equal(approvedRadioTrack.artist, 'Artista Teste');
-      assert.match(approvedRadioTrack.url, /radio\/library\/stream/);
+      assert.match(approvedRadioTrack.url, /radio\/public\/stream\/[a-f0-9]{64}/);
 
       requestStatus = 'SOLICITADA';
       await institutionalService.updateRadioRequestStatus(
@@ -734,7 +735,7 @@ describe('Enxamistas Critical Suite', () => {
         '4796/Sunflower.mp3',
         'outro-membro/outra.MP3',
       ]);
-      assert.match(result.tracks[0].url, /radio\/library\/stream/);
+      assert.match(result.tracks[0].url, /radio\/public\/stream\/[a-f0-9]{64}/);
       assert.equal(
         await institutionalService.getRadioLibraryFile('4796/Sunflower.mp3'),
         path.join(musicRoot, '4796', 'Sunflower.mp3')
@@ -742,6 +743,39 @@ describe('Enxamistas Critical Suite', () => {
       await assert.rejects(
         () => institutionalService.getRadioLibraryFile('../secret.mp3'),
         /Caminho da música inválido/
+      );
+    } finally {
+      if (previousMusicDir === undefined) delete process.env.RADIO_MUSIC_DIR;
+      else process.env.RADIO_MUSIC_DIR = previousMusicDir;
+      fs.rmSync(musicRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('Public radio catalog omits member identifiers and provides playable opaque stream tokens', async () => {
+    const musicRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'enxamistas-public-radio-'));
+    const previousMusicDir = process.env.RADIO_MUSIC_DIR;
+    process.env.RADIO_MUSIC_DIR = musicRoot;
+    fs.mkdirSync(path.join(musicRoot, 'passport-private'), { recursive: true });
+    fs.writeFileSync(path.join(musicRoot, 'passport-private', 'Public Song.mp3'), 'audio');
+    prisma.radioTrack.findMany = async () => [];
+
+    try {
+      const result = await institutionalService.getPublicRadioData();
+      assert.equal(result.tracks.length, 1);
+      assert.equal(result.tracks[0].title, 'Public Song');
+      assert.equal(result.tracks[0].artist, 'Biblioteca da rádio');
+      assert.equal('passport' in result.tracks[0], false);
+      assert.equal('filePath' in result.tracks[0], false);
+      assert.equal('author' in result.tracks[0], false);
+      assert.match(result.tracks[0].id, /^[a-f0-9]{64}$/);
+      assert.equal(result.tracks[0].url, `/radio/public/stream/${result.tracks[0].id}`);
+      assert.equal(
+        await institutionalService.getPublicRadioLibraryFile(result.tracks[0].id),
+        path.join(musicRoot, 'passport-private', 'Public Song.mp3')
+      );
+      await assert.rejects(
+        () => institutionalService.getPublicRadioLibraryFile('../secret.mp3'),
+        /Faixa de rádio não encontrada/
       );
     } finally {
       if (previousMusicDir === undefined) delete process.env.RADIO_MUSIC_DIR;

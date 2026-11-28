@@ -1,4 +1,6 @@
+import { createHmac } from 'node:crypto';
 import { prisma } from '../lib/prisma';
+import { env } from '../config/env';
 import {
   announcementSchema,
   guestbookSchema,
@@ -490,6 +492,37 @@ export class InstitutionalService {
 
   // --- RADIO: SISTEMA DE PEDIDOS DE MÚSICAS ---
 
+  private getPublicRadioTrackToken(filePath: string) {
+    return createHmac('sha256', env.JWT_SECRET).update(filePath).digest('hex');
+  }
+
+  async getPublicRadioData() {
+    const { tracks } = await this.getRadioData();
+    return {
+      tracks: tracks.map((track) => ({
+        id: this.getPublicRadioTrackToken(track.filePath!),
+        title: track.title,
+        artist: track.artist,
+        url: `/radio/public/stream/${this.getPublicRadioTrackToken(track.filePath!)}`,
+        status: 'ADICIONADA_PLAYLIST',
+      })),
+    };
+  }
+
+  async getPublicRadioLibraryFile(trackToken: string) {
+    if (!/^[a-f0-9]{64}$/.test(trackToken)) {
+      throw new AppError('Faixa de rádio não encontrada.', 404, 'AUDIO_FILE_NOT_FOUND');
+    }
+
+    const { tracks } = await this.getRadioData();
+    const track = tracks.find((candidate) => this.getPublicRadioTrackToken(candidate.filePath!) === trackToken);
+    if (!track?.filePath) {
+      throw new AppError('Faixa de rádio não encontrada.', 404, 'AUDIO_FILE_NOT_FOUND');
+    }
+
+    return this.getRadioLibraryFile(track.filePath);
+  }
+
   async getRadioData() {
     const approvedTracks = await prisma.radioTrack.findMany({
       where: { status: 'ADICIONADA_PLAYLIST' },
@@ -530,7 +563,7 @@ export class InstitutionalService {
         artist: registeredTrack?.artist || 'Biblioteca da rádio',
         passport: relativePath.includes('/') ? relativePath.split('/')[0] : null,
         filePath: relativePath,
-        url: `/radio/library/stream?file=${encodeURIComponent(relativePath)}`,
+        url: `/radio/public/stream/${this.getPublicRadioTrackToken(relativePath)}`,
         status: 'ADICIONADA_PLAYLIST',
         author: registeredTrack?.author || null,
       };

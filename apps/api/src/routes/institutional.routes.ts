@@ -99,6 +99,10 @@ router.post(
   controller.createHighlight
 );
 
+// Public radio playback exposes only approved library tracks and opaque stream tokens.
+router.get('/radio/public', controller.getPublicRadio);
+router.get('/radio/public/stream/:trackToken', controller.streamPublicRadioFile);
+
 // Radio: Sistema de Pedidos de Músicas
 router.get('/radio', authMiddleware, controller.getRadio);
 router.post(

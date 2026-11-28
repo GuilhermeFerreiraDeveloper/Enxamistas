@@ -1,7 +1,6 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import api from '@/lib/api';
 
 export interface RadioTrackItem {
@@ -59,7 +58,6 @@ function shuffled<T>(items: T[]): T[] {
 }
 
 export function RadioProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [tracks, setTracks] = useState<RadioTrackItem[]>([]);
   const [currentTrack, setCurrentTrack] = useState<RadioTrackItem | null>(null);
@@ -164,12 +162,10 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
-
     let active = true;
     const loadLibrary = async () => {
       try {
-        const response = await api.get('/radio');
+        const response = await api.get('/radio/public');
         if (active) setTracks(Array.isArray(response.data?.tracks) ? response.data.tracks : []);
       } catch {
         if (active) setAudioError('Não foi possível carregar a biblioteca da rádio.');
@@ -182,7 +178,7 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
       active = false;
       window.clearInterval(intervalId);
     };
-  }, [user]);
+  }, []);
 
   const playTrack = (track: RadioTrackItem) => {
     userPausedRef.current = false;
