@@ -14,8 +14,10 @@ function formatTime(seconds: number) {
 
 export function RadioBar() {
   const {
+    tracks,
     currentTrack,
     isPlaying,
+    isLoaded,
     volume,
     isMuted,
     progress,
@@ -31,9 +33,8 @@ export function RadioBar() {
     toggleFavorite,
   } = useRadio();
 
-  if (!currentTrack) return null;
-
-  const isFav = favorites.includes(currentTrack.id);
+  const isFav = currentTrack ? favorites.includes(currentTrack.id) : false;
+  const playbackUnavailable = !currentTrack && tracks.length === 0;
 
   return (
     <div data-radio-controls className="fixed inset-x-0 bottom-0 z-40 border-t border-royal-gold/20 bg-graphite/95 px-3 py-2.5 backdrop-blur-xl sm:px-6">
@@ -44,32 +45,36 @@ export function RadioBar() {
           </div>
           <div className="min-w-0">
             <Link href="/radio" className="block truncate text-xs font-bold text-white hover:text-royal-gold">
-              {currentTrack.title}
+              {currentTrack?.title || (isLoaded ? 'Rádio Enxamistas' : 'Carregando rádio...')}
             </Link>
-            <p className="truncate text-[10px] text-white/50">{currentTrack.artist}</p>
+            <p className="truncate text-[10px] text-white/50">
+              {currentTrack?.artist || (isLoaded ? 'Nenhuma faixa disponível' : 'Conectando à biblioteca')}
+            </p>
             {audioError && <p className="max-w-48 truncate text-[10px] text-red-400" title={audioError}>{audioError}</p>}
           </div>
         </div>
 
         <div data-radio-controls className="flex items-center justify-self-end gap-1 sm:gap-2">
-          <button type="button" onClick={prevTrack} aria-label="Faixa anterior" title="Faixa anterior" className="hidden min-h-9 min-w-9 place-items-center rounded-full text-white/60 hover:bg-white/5 hover:text-royal-gold sm:grid">
+          <button type="button" onClick={prevTrack} disabled={playbackUnavailable} aria-label="Faixa anterior" title="Faixa anterior" className="hidden min-h-9 min-w-9 place-items-center rounded-full text-white/60 hover:bg-white/5 hover:text-royal-gold disabled:opacity-30 sm:grid">
             <SkipBack size={16} />
           </button>
           <button
             type="button"
             onClick={togglePlay}
+            disabled={playbackUnavailable}
             aria-label={isPlaying ? 'Pausar rádio' : 'Iniciar rádio'}
             title={isPlaying ? 'Pausar rádio' : 'Iniciar rádio'}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-royal-gold text-obsidian hover:bg-royal-gold-light"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-royal-gold text-obsidian hover:bg-royal-gold-light disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isPlaying ? <Pause size={16} /> : <Play size={16} />}
           </button>
-          <button type="button" onClick={nextTrack} aria-label="Próxima faixa aleatória" title="Próxima faixa" className="grid min-h-9 min-w-9 place-items-center rounded-full text-white/60 hover:bg-white/5 hover:text-royal-gold">
+          <button type="button" onClick={nextTrack} disabled={playbackUnavailable} aria-label="Próxima faixa aleatória" title="Próxima faixa" className="grid min-h-9 min-w-9 place-items-center rounded-full text-white/60 hover:bg-white/5 hover:text-royal-gold disabled:opacity-30">
             <SkipForward size={16} />
           </button>
           <button
             type="button"
-            onClick={() => toggleFavorite(currentTrack.id)}
+            onClick={() => currentTrack && toggleFavorite(currentTrack.id)}
+            disabled={!currentTrack}
             aria-label={isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
             title={isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
             className={`hidden min-h-9 min-w-9 place-items-center rounded-full sm:grid ${isFav ? 'text-red-400' : 'text-white/40 hover:text-red-400'}`}

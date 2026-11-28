@@ -166,9 +166,15 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
     const loadLibrary = async () => {
       try {
         const response = await api.get('/radio/public');
-        if (active) setTracks(Array.isArray(response.data?.tracks) ? response.data.tracks : []);
+        if (active) {
+          setTracks(Array.isArray(response.data?.tracks) ? response.data.tracks : []);
+          setIsLoaded(true);
+        }
       } catch {
-        if (active) setAudioError('Não foi possível carregar a biblioteca da rádio.');
+        if (active) {
+          setAudioError('Não foi possível carregar a biblioteca da rádio.');
+          setIsLoaded(true);
+        }
       }
     };
 
@@ -281,7 +287,12 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   }, [tracks]);
 
   const togglePlay = () => {
-    if (!currentTrack) return;
+    if (!currentTrack) {
+      const firstTrack = takeNextTrack();
+      if (firstTrack) playTrack(firstTrack);
+      else setAudioError(isLoaded ? 'A biblioteca ainda não possui músicas.' : 'Aguarde o carregamento da biblioteca da rádio.');
+      return;
+    }
     setAudioError(null);
     const audio = audioRef.current;
     if (!audio) return;
