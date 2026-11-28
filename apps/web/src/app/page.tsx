@@ -79,50 +79,82 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-obsidian text-ivory selection:bg-royal-gold selection:text-obsidian relative overflow-hidden">
-      <div className="absolute inset-0 honeycomb-overlay opacity-70 pointer-events-none" />
-      <div className="absolute inset-x-0 top-0 h-[560px] honeycomb-glow pointer-events-none" />
-      <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-royal-gold/5 rounded-full blur-[150px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-amber-500/5 rounded-full blur-[150px] translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+      <div className="pointer-events-none absolute inset-0 honeycomb-overlay opacity-40" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[620px] honeycomb-glow" />
+      <div className="pointer-events-none absolute right-[-14rem] top-24 h-[30rem] w-[30rem] rounded-full bg-orchid/10 blur-[130px]" />
+      <div className="pointer-events-none absolute left-[-10rem] top-[34rem] h-[24rem] w-[24rem] rounded-full bg-coral/5 blur-[120px]" />
+      <div className="pointer-events-none absolute bottom-0 right-[15%] h-[24rem] w-[24rem] rounded-full bg-mint/5 blur-[130px]" />
 
       <Navbar />
 
       {/* Hero Section */}
-      <section className="relative z-10 pt-20 pb-20 px-6 md:px-16 flex flex-col items-center text-center">
-        <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-royal-gold/10 border border-royal-gold/30 mb-8 shadow-gold-glow">
-          <BeeIcon className="w-4 h-4 text-royal-gold" />
-          <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-royal-gold">
-            Fraternidade Abelha • Roxwood &amp; Universidade de RUA2
-          </span>
+      <section className="relative z-10 mx-auto grid max-w-[1440px] items-center gap-12 px-5 pb-20 pt-16 sm:px-8 sm:pt-24 lg:grid-cols-[1.2fr_0.8fr] lg:px-12 lg:pb-28">
+        <div className="max-w-3xl">
+          <div className="mb-7 inline-flex items-center gap-2.5 rounded-full border border-royal-gold/25 bg-royal-gold/[0.08] px-4 py-2.5 shadow-gold-glow">
+            <BeeIcon className="h-4 w-4 text-royal-gold" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-honey sm:tracking-[0.24em]">
+              Fraternidade Abelha <span className="px-1 text-orchid">✳</span> Roxwood
+            </span>
+          </div>
+
+          <h1 className="mb-7 text-[clamp(3.2rem,8vw,7.5rem)] font-black leading-[0.88] tracking-[-0.075em] text-white">
+            UM ENXAME.
+            <br />
+            <span className="bg-gradient-to-r from-royal-gold via-coral to-orchid bg-clip-text font-serif italic tracking-[-0.055em] text-transparent">
+              MIL JEITOS
+            </span>
+            <br />
+            DE BRILHAR.
+          </h1>
+
+          <p className="mb-9 max-w-2xl text-base leading-relaxed text-white/65 sm:text-lg">
+            Um lugar para criar, aprender e pertencer. Inspirados pelas abelhas, fazemos da diversidade nossa força e da cooperação o nosso jeito de voar.
+          </p>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <Link href="/cadastro" className="btn-primary min-h-12 px-7 text-sm">
+              ENTRAR NA COLMEIA
+              <ArrowRight size={18} />
+            </Link>
+            <Link
+              href="/lore"
+              className="inline-flex min-h-12 items-center justify-center gap-3 rounded-xl border border-white/15 bg-white/[0.04] px-7 text-xs font-bold uppercase tracking-[0.14em] text-white/85 transition hover:border-royal-gold/40 hover:bg-white/[0.08]"
+            >
+              CONHEÇA NOSSA HISTÓRIA
+            </Link>
+          </div>
+          <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-white/45">
+            <span className="inline-flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-coral" /> Diversidade</span>
+            <span className="inline-flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-orchid" /> Respeito</span>
+            <span className="inline-flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-mint" /> Comunidade</span>
+          </div>
         </div>
 
-        <h1 className="text-5xl sm:text-6xl md:text-8xl font-bold text-white mb-7 tracking-tighter leading-none">
-          DIVERSIDADE. <br />
-          <span className="text-royal-gold text-glow-gold italic font-serif">COMUNICAÇÃO.</span>
-        </h1>
-
-        <p className="max-w-2xl text-base md:text-xl text-white/65 font-medium tracking-wide leading-relaxed mb-10">
-          Inspirados pelas abelhas e fundados por Erasmos em Roxwood, os Enxamistas são uma colmeia
-          de ideias onde diversidade, cooperação e respeito mútuo constroem grandes conquistas.
-        </p>
-
-        <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-4 sm:gap-5">
-          <Link href="/cadastro" className="btn-primary flex items-center justify-center gap-3 px-9 py-4 text-sm">
-            ENTRAR NA COLMEIA
-            <ArrowRight size={18} />
-          </Link>
-          <Link
-            href="/lore"
-            className="px-9 py-4 text-sm font-bold uppercase tracking-[0.2em] border border-royal-gold/30 hover:border-royal-gold hover:bg-royal-gold/10 transition-all rounded-sm flex items-center justify-center gap-3"
-          >
-            HISTÓRIA &amp; 20 REGRAS
-          </Link>
-          <Link
-            href="/cinematica"
-            className="px-8 py-4 text-sm font-bold uppercase tracking-[0.2em] border border-white/15 hover:border-royal-gold/50 hover:bg-white/5 transition-all rounded-sm flex items-center justify-center gap-3 text-honey"
-          >
-            <Film size={17} className="text-royal-gold" />
-            CINEMÁTICA
-          </Link>
+        <div className="relative mx-auto w-full max-w-md lg:ml-auto">
+          <div className="absolute -inset-5 rounded-[2.5rem] bg-gradient-to-br from-royal-gold/20 via-orchid/10 to-mint/10 blur-2xl" />
+          <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-[#242326] via-[#19191c] to-[#171817] p-6 shadow-2xl sm:p-8">
+            <div className="absolute -right-12 -top-14 h-44 w-44 rounded-full border border-royal-gold/15" />
+            <div className="absolute -right-5 -top-7 h-28 w-28 rounded-full border border-orchid/20" />
+            <div className="relative flex items-center justify-between">
+              <div className="grid h-14 w-14 place-items-center rounded-2xl border border-royal-gold/25 bg-royal-gold/10 p-2.5">
+                <img src="/icon.png" alt="Símbolo Enxamistas" className="h-full w-full object-contain" />
+              </div>
+              <span className="rounded-full border border-mint/20 bg-mint/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-mint">Feitos para pertencer</span>
+            </div>
+            <p className="relative mt-10 text-xs font-bold uppercase tracking-[0.22em] text-royal-gold">A força está no coletivo</p>
+            <h2 className="relative mt-3 text-3xl font-bold leading-tight text-white sm:text-4xl">Cada pessoa é única.<br /><span className="text-white/55">Juntos, somos colmeia.</span></h2>
+            <div className="relative mt-8 flex items-center gap-2" aria-hidden="true">
+              <span className="h-1.5 w-12 rounded-full bg-royal-gold" />
+              <span className="h-1.5 w-8 rounded-full bg-coral" />
+              <span className="h-1.5 w-8 rounded-full bg-orchid" />
+              <span className="h-1.5 w-8 rounded-full bg-mint" />
+              <span className="h-1.5 w-5 rounded-full bg-white/20" />
+            </div>
+            <div className="relative mt-8 flex items-center justify-between border-t border-white/10 pt-5 text-xs text-white/45">
+              <span>Roxwood · Universidade de RUA2</span>
+              <Film size={16} className="text-royal-gold" />
+            </div>
+          </div>
         </div>
       </section>
 

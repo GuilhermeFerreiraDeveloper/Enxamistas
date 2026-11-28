@@ -3,30 +3,39 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: dark;
   --obsidian: #101112;
   --graphite: #1B1C1D;
   --royal-gold: #C49A48;
   --amber-honey: #E6A82E;
   --honey: #E5D3A2;
   --ivory: #F0EEE8;
+  --orchid: #B89AF7;
+  --coral: #F18D83;
+  --mint: #86D6BB;
 }
 
 html {
   min-width: 320px;
   scroll-behavior: smooth;
+  scrollbar-color: rgba(196, 154, 72, 0.55) #101112;
 }
 
 body {
   color: var(--ivory);
   background-color: var(--obsidian);
+  background-image:
+    radial-gradient(ellipse at 12% 8%, rgba(184, 154, 247, 0.075), transparent 34rem),
+    radial-gradient(ellipse at 92% 18%, rgba(196, 154, 72, 0.08), transparent 32rem),
+    radial-gradient(ellipse at 65% 92%, rgba(134, 214, 187, 0.045), transparent 36rem);
   min-height: 100vh;
   min-width: 320px;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
-:focus-visible {
-  outline: 2px solid var(--royal-gold);
-  outline-offset: 3px;
+::selection {
+  color: var(--obsidian);
+  background: var(--royal-gold);
 }
 
 button,
@@ -37,17 +46,47 @@ textarea {
   -webkit-tap-highlight-color: transparent;
 }
 
+button:not(:disabled),
+a[href],
+input[type="range"] {
+  touch-action: manipulation;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--royal-gold);
+  outline-offset: 3px;
+}
+
 @layer components {
   .btn-primary {
-    @apply bg-gradient-to-r from-royal-gold to-[#D8AE56] hover:from-[#D8AE56] hover:to-honey text-obsidian font-bold py-2 px-6 rounded-sm transition-all duration-500 tracking-wider uppercase text-xs shadow-gold-glow;
+    @apply inline-flex items-center justify-center gap-2 bg-gradient-to-r from-royal-gold to-[#D8AE56] hover:from-[#D8AE56] hover:to-honey text-obsidian font-bold py-2.5 px-6 rounded-xl transition-all duration-300 tracking-wider uppercase text-xs shadow-gold-glow hover:-translate-y-0.5 hover:shadow-xl;
   }
 
   .card-premium {
-    @apply bg-graphite/95 border border-royal-gold/15 rounded-sm p-8 shadow-premium hover:border-royal-gold/45 transition-all duration-500 relative overflow-hidden;
+    @apply bg-graphite/80 border border-white/10 rounded-2xl p-6 sm:p-8 shadow-premium hover:border-royal-gold/40 hover:bg-graphite/95 transition-all duration-300 relative overflow-hidden;
   }
 
   .card-honeycomb {
-    @apply bg-graphite/90 border border-royal-gold/20 rounded-sm p-6 shadow-premium hover:border-royal-gold/50 hover:shadow-gold-glow transition-all duration-300 relative;
+    @apply bg-graphite/75 border border-royal-gold/20 rounded-2xl p-6 shadow-premium hover:border-royal-gold/50 hover:shadow-gold-glow hover:-translate-y-1 transition-all duration-300 relative;
+  }
+
+  .surface-glass {
+    @apply border border-white/10 bg-white/[0.045] shadow-premium backdrop-blur-xl;
+  }
+
+  .eyebrow {
+    @apply text-[10px] font-bold uppercase tracking-[0.24em] text-royal-gold;
   }
 
   .hex-badge {

@@ -4,11 +4,13 @@ import Link from 'next/link';
 import { Menu, X, Play, Pause, SkipForward, Volume2, VolumeX, Radio } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRadio } from '@/contexts/RadioContext';
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const pathname = usePathname();
   const { user } = useAuth();
   const {
     tracks,
@@ -41,11 +43,11 @@ export function Navbar() {
   const secondaryNavLinks = navLinks.filter((link) => !primaryNavLinks.includes(link));
 
   return (
-    <nav className="sticky top-0 w-full z-50 bg-obsidian/90 backdrop-blur-md border-b border-royal-gold/15">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-11 h-11 hex-badge bg-royal-gold/10 border border-royal-gold/30 flex items-center justify-center p-1.5 group-hover:scale-110 transition-transform duration-500">
+    <nav className="sticky top-0 z-50 w-full border-b border-white/[0.08] bg-obsidian/80 backdrop-blur-2xl">
+      <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8">
+        <div className="flex h-[4.5rem] items-center justify-between gap-5 sm:h-[5rem]">
+          <Link href="/" className="group flex shrink-0 items-center gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded-xl border border-royal-gold/30 bg-gradient-to-br from-royal-gold/20 to-orchid/10 p-1.5 shadow-gold-glow transition-transform duration-300 group-hover:-rotate-3 group-hover:scale-105 sm:h-11 sm:w-11">
               <img
                 src="/icon.png"
                 alt="Enxamistas"
@@ -53,11 +55,11 @@ export function Navbar() {
               />
             </div>
             <div className="flex flex-col">
-              <span className="text-lg font-bold tracking-[0.3em] text-white group-hover:text-royal-gold transition-colors">
+              <span className="text-base font-extrabold tracking-[0.18em] text-white transition-colors group-hover:text-royal-gold sm:text-lg">
                 ENXAMISTAS
               </span>
-              <span className="text-[9px] font-bold uppercase tracking-[0.28em] text-royal-gold/75">
-                Fraternidade • Roxwood
+              <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45">
+                Uma colmeia, muitas vozes
               </span>
             </div>
           </Link>
@@ -67,21 +69,25 @@ export function Navbar() {
               <Link
                 key={link.name}
                 href={link.href}
-                className="whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.12em] text-white/65 transition-colors hover:text-royal-gold 2xl:text-[10px] 2xl:tracking-[0.16em]"
+                aria-current={pathname === link.href ? 'page' : undefined}
+                className={cn(
+                  'whitespace-nowrap rounded-full px-3 py-2 text-[10px] font-semibold transition-colors',
+                  pathname === link.href ? 'bg-white/[0.08] text-white' : 'text-white/60 hover:bg-white/[0.06] hover:text-white'
+                )}
               >
                 {link.name}
               </Link>
             ))}
             <details className="group relative">
-              <summary className="cursor-pointer list-none whitespace-nowrap px-2 py-2 text-[9px] font-bold uppercase tracking-[0.12em] text-white/65 transition-colors hover:text-royal-gold 2xl:text-[10px]">
+              <summary className="cursor-pointer list-none whitespace-nowrap rounded-full px-3 py-2 text-[10px] font-semibold text-white/60 transition-colors hover:bg-white/[0.06] hover:text-white">
                 Explorar
               </summary>
-              <div className="absolute right-0 top-full z-50 mt-2 min-w-52 rounded-sm border border-royal-gold/20 bg-graphite p-2 shadow-xl">
+              <div className="absolute right-0 top-full z-50 mt-3 min-w-52 rounded-2xl border border-white/10 bg-graphite/95 p-2 shadow-2xl backdrop-blur-xl">
                 {secondaryNavLinks.map((link) => (
                   <Link
                     key={link.name}
                     href={link.href}
-                    className="block rounded-sm px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-white/65 transition-colors hover:bg-white/5 hover:text-royal-gold"
+                    className="block rounded-xl px-3 py-2.5 text-xs font-medium text-white/65 transition-colors hover:bg-white/[0.07] hover:text-white"
                   >
                     {link.name}
                   </Link>
@@ -110,7 +116,7 @@ export function Navbar() {
           <button
             type="button"
             onClick={() => setIsOpen(!isOpen)}
-            className="p-2 text-white/70 hover:text-royal-gold xl:hidden"
+            className="grid h-11 w-11 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-white/80 transition hover:border-royal-gold/40 hover:text-royal-gold xl:hidden"
             aria-label="Alternar menu"
           >
             {isOpen ? <X size={24} /> : <Menu size={24} />}
@@ -118,13 +124,17 @@ export function Navbar() {
         </div>
       </div>
 
-      <div className={cn('xl:hidden border-b border-royal-gold/15 bg-graphite', isOpen ? 'block' : 'hidden')}>
-        <div className="px-4 py-4 space-y-2">
+      <div className={cn('xl:hidden border-b border-white/10 bg-graphite/95 backdrop-blur-2xl', isOpen ? 'block' : 'hidden')}>
+        <div className="mx-auto max-w-2xl space-y-1 px-4 py-4 sm:px-6">
           {navLinks.map((link) => (
             <Link
               key={link.name}
               href={link.href}
-              className="block px-3 py-2.5 text-xs font-bold uppercase tracking-[0.2em] text-white/75 hover:text-royal-gold"
+              aria-current={pathname === link.href ? 'page' : undefined}
+              className={cn(
+                'block rounded-xl px-4 py-3 text-sm font-medium transition-colors',
+                pathname === link.href ? 'bg-white/[0.08] text-white' : 'text-white/65 hover:bg-white/[0.05] hover:text-white'
+              )}
               onClick={() => setIsOpen(false)}
             >
               {link.name}

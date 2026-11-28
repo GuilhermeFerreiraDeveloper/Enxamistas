@@ -18,6 +18,9 @@ const config: Config = {
         },
         honey: '#E5D3A2',
         ivory: '#F0EEE8',
+        orchid: '#B89AF7',
+        coral: '#F18D83',
+        mint: '#86D6BB',
         background: '#101112',
         foreground: '#F0EEE8',
         primary: {
