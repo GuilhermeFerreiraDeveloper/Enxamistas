@@ -74,13 +74,20 @@ export function FileUploadZone({
       const arrayBuffer = await file.arrayBuffer();
       const response = await api.post(`/uploads/${scope}`, arrayBuffer, {
         headers: { 'Content-Type': file.type },
+        timeout: 60_000,
       });
       onUploaded(response.data.url);
     } catch (err: any) {
-      setError(
-        err.response?.data?.error ||
-          'Falha ao enviar arquivo. Verifique se o provedor S3 está configurado.'
-      );
+      const responseError = err.response?.data?.error || err.response?.data?.message;
+      if (responseError) {
+        setError(responseError);
+      } else if (err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT') {
+        setError('O envio demorou mais que o esperado. Tente novamente com uma imagem menor ou verifique o storage no servidor.');
+      } else if (!err.response) {
+        setError(`Não foi possível conectar à API para enviar o arquivo (${err.message || 'erro de rede'}).`);
+      } else {
+        setError(`Falha no envio (HTTP ${err.response.status}). Verifique os logs da API.`);
+      }
     } finally {
       setUploading(false);
     }
