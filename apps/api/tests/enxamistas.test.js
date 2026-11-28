@@ -13,7 +13,7 @@ const { AdminService } = require('../dist/services/admin.service.js');
 const { AcademicService } = require('../dist/services/academic.service.js');
 const { EventService } = require('../dist/services/event.service.js');
 const { ChatService } = require('../dist/services/chat.service.js');
-const { StorageService } = require('../dist/services/storage.service.js');
+const { StorageService, storageService } = require('../dist/services/storage.service.js');
 const { CinematicService, extractYoutubeId } = require('../dist/services/cinematic.service.js');
 const { InstitutionalService } = require('../dist/services/institutional.service.js');
 const { ProfileService } = require('../dist/services/profile.service.js');
@@ -510,6 +510,97 @@ describe('Enxamistas Critical Suite', () => {
     );
   });
 
+  it('StorageService stores radio files in the S3-compatible musicas prefix', async () => {
+    const storage = new StorageService();
+    const commands = [];
+    const originalIsConfigured = storage.isConfigured;
+    storage.isConfigured = () => true;
+    storage.s3Client = {
+      send: async (command) => {
+        commands.push(command);
+        if (command.constructor.name === 'HeadObjectCommand') {
+          const error = new Error('not found');
+          error.name = 'NotFound';
+          error.$metadata = { httpStatusCode: 404 };
+          throw error;
+        }
+        if (command.constructor.name === 'ListObjectsV2Command') {
+          return {
+            Contents: [
+              { Key: 'musicas/123456/song.mp3' },
+              { Key: 'musicas/123456/readme.txt' },
+            ],
+            IsTruncated: false,
+          };
+        }
+        return {};
+      },
+    };
+
+    try {
+      await storage.uploadRadioFile('123456/song.mp3', Buffer.from('audio'));
+      assert.deepEqual(await storage.listRadioFiles(), ['123456/song.mp3']);
+      await storage.deleteRadioFile('123456/song.mp3');
+      assert.equal(commands.find((command) => command.constructor.name === 'PutObjectCommand').input.Key, 'musicas/123456/song.mp3');
+      assert.equal(commands.find((command) => command.constructor.name === 'ListObjectsV2Command').input.Prefix, 'musicas/');
+      assert.equal(commands.find((command) => command.constructor.name === 'DeleteObjectCommand').input.Key, 'musicas/123456/song.mp3');
+      await assert.rejects(() => storage.deleteRadioFile('../outside.mp3'), /Caminho da música inválido/);
+    } finally {
+      storage.isConfigured = originalIsConfigured;
+      storage.s3Client = null;
+    }
+  });
+
+  it('Radio service uses R2 for catalog, upload, playback and deletion when configured', async () => {
+    const originalIsConfigured = storageService.isConfigured;
+    const originalListRadioFiles = storageService.listRadioFiles;
+    const originalUploadRadioFile = storageService.uploadRadioFile;
+    const originalAssertRadioFileExists = storageService.assertRadioFileExists;
+    const originalGetRadioFileUrl = storageService.getRadioFileUrl;
+    const originalDeleteRadioFile = storageService.deleteRadioFile;
+    const previousMusicDir = process.env.RADIO_MUSIC_DIR;
+    const musicRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'enxamistas-radio-r2-'));
+    process.env.RADIO_MUSIC_DIR = musicRoot;
+    const remoteFiles = ['7654/R2 Song.mp3'];
+    const uploaded = [];
+    const deleted = [];
+    storageService.isConfigured = () => true;
+    storageService.listRadioFiles = async () => remoteFiles;
+    storageService.uploadRadioFile = async (relativePath) => { uploaded.push(relativePath); };
+    storageService.assertRadioFileExists = async () => {};
+    storageService.getRadioFileUrl = async () => 'https://r2.example/signed-audio';
+    storageService.deleteRadioFile = async (relativePath) => { deleted.push(relativePath); };
+    prisma.radioTrack.findMany = async () => [];
+
+    try {
+      const library = await institutionalService.getRadioData();
+      assert.deepEqual(library.tracks.map((track) => track.filePath), remoteFiles);
+      assert.equal(fs.readdirSync(musicRoot).length, 0);
+
+      await institutionalService.uploadRadioLibraryFile(
+        'R2 Song.mp3', '7654', Buffer.from('ID3\u0004\u0000\u0000'), 'staff-user'
+      );
+      assert.deepEqual(uploaded, remoteFiles);
+      assert.deepEqual(await institutionalService.getRadioLibraryPlayback(remoteFiles[0]), {
+        url: 'https://r2.example/signed-audio',
+      });
+
+      prisma.radioTrack.findMany = async () => [];
+      await institutionalService.deleteRadioLibraryFile(remoteFiles[0], 'staff-user');
+      assert.deepEqual(deleted, remoteFiles);
+    } finally {
+      storageService.isConfigured = originalIsConfigured;
+      storageService.listRadioFiles = originalListRadioFiles;
+      storageService.uploadRadioFile = originalUploadRadioFile;
+      storageService.assertRadioFileExists = originalAssertRadioFileExists;
+      storageService.getRadioFileUrl = originalGetRadioFileUrl;
+      storageService.deleteRadioFile = originalDeleteRadioFile;
+      if (previousMusicDir === undefined) delete process.env.RADIO_MUSIC_DIR;
+      else process.env.RADIO_MUSIC_DIR = previousMusicDir;
+      fs.rmSync(musicRoot, { recursive: true, force: true });
+    }
+  });
+
   it('Radio request service binds the authenticated profile/passport and rejects invalid URLs', async () => {
     const musicRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'enxamistas-radio-request-'));
     const previousMusicDir = process.env.RADIO_MUSIC_DIR;
@@ -545,7 +636,7 @@ describe('Enxamistas Critical Suite', () => {
       assert.equal(created.authorId, 'profile-1');
       assert.equal(created.passport, '123456');
       assert.equal(created.status, 'SOLICITADA');
-      assert.equal(fs.existsSync(path.join(musicRoot, '123456')), true);
+      assert.equal(fs.existsSync(path.join(musicRoot, '123456')), false);
 
       await assert.rejects(
         () => institutionalService.createRadioRequest(
@@ -701,16 +792,53 @@ describe('Enxamistas Critical Suite', () => {
         /Já existe/
       );
 
-      prisma.radioTrack.findFirst = async () => ({ id: 'approved-track', title: 'Sunflower' });
-      await assert.rejects(
-        () => institutionalService.deleteRadioLibraryFile(result.filePath, 'staff-user'),
-        /vinculado a uma playlist aprovada/
-      );
-      assert.equal(fs.existsSync(savedPath), true);
-
-      prisma.radioTrack.findFirst = async () => null;
+      let detachedTrackIds = [];
+      prisma.radioTrack.findMany = async () => [{ id: 'approved-track' }];
+      prisma.radioPlaylistTrack.deleteMany = async (args) => {
+        detachedTrackIds = args.where.trackId.in;
+        return { count: detachedTrackIds.length };
+      };
+      prisma.radioTrack.updateMany = async () => ({ count: detachedTrackIds.length });
       await institutionalService.deleteRadioLibraryFile(result.filePath, 'staff-user');
       assert.equal(fs.existsSync(savedPath), false);
+      assert.deepEqual(detachedTrackIds, ['approved-track']);
+    } finally {
+      if (previousMusicDir === undefined) delete process.env.RADIO_MUSIC_DIR;
+      else process.env.RADIO_MUSIC_DIR = previousMusicDir;
+      fs.rmSync(musicRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('Radio staff can clear every passport folder and detach all playlist tracks', async () => {
+    const musicRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'enxamistas-radio-clear-'));
+    const previousMusicDir = process.env.RADIO_MUSIC_DIR;
+    process.env.RADIO_MUSIC_DIR = musicRoot;
+    const relativePaths = ['123456/one.mp3', '654321/two.mp3'];
+    for (const relativePath of relativePaths) {
+      const absolutePath = path.join(musicRoot, relativePath);
+      fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+      fs.writeFileSync(absolutePath, 'audio');
+    }
+
+    let detachedTrackIds = [];
+    prisma.radioTrack.findMany = async (args) => {
+      if (args.where.filePath) return relativePaths.map((_, index) => ({ id: `track-${index + 1}` }));
+      return [];
+    };
+    prisma.radioPlaylistTrack.deleteMany = async (args) => {
+      detachedTrackIds = args.where.trackId.in;
+      return { count: detachedTrackIds.length };
+    };
+    prisma.radioTrack.updateMany = async () => ({ count: detachedTrackIds.length });
+    prisma.auditLog.create = async () => ({ id: 'audit-1' });
+
+    try {
+      const deletedCount = await institutionalService.deleteAllRadioLibraryFiles('staff-user');
+      assert.equal(deletedCount, 2);
+      assert.deepEqual(detachedTrackIds, ['track-1', 'track-2']);
+      for (const relativePath of relativePaths) {
+        assert.equal(fs.existsSync(path.join(musicRoot, relativePath)), false);
+      }
     } finally {
       if (previousMusicDir === undefined) delete process.env.RADIO_MUSIC_DIR;
       else process.env.RADIO_MUSIC_DIR = previousMusicDir;
@@ -769,9 +897,9 @@ describe('Enxamistas Critical Suite', () => {
       assert.equal('author' in result.tracks[0], false);
       assert.match(result.tracks[0].id, /^[a-f0-9]{64}$/);
       assert.equal(result.tracks[0].url, `/radio/public/stream/${result.tracks[0].id}`);
-      assert.equal(
+      assert.deepEqual(
         await institutionalService.getPublicRadioLibraryFile(result.tracks[0].id),
-        path.join(musicRoot, 'passport-private', 'Public Song.mp3')
+        { filePath: path.join(musicRoot, 'passport-private', 'Public Song.mp3') }
       );
       await assert.rejects(
         () => institutionalService.getPublicRadioLibraryFile('../secret.mp3'),

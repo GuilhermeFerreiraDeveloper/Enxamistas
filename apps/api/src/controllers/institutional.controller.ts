@@ -300,8 +300,12 @@ export class InstitutionalController {
 
   async streamPublicRadioFile(req: Request, res: Response, next: NextFunction) {
     try {
-      const filePath = await service.getPublicRadioLibraryFile(req.params.trackToken);
-      streamAudioFile(filePath, req, res, next, true);
+      const playback = await service.getPublicRadioLibraryFile(req.params.trackToken);
+      if (playback.url) {
+        res.redirect(302, playback.url);
+        return;
+      }
+      streamAudioFile(playback.filePath!, req, res, next, true);
     } catch (error) {
       next(error);
     }
@@ -401,11 +405,24 @@ export class InstitutionalController {
     }
   }
 
+  async deleteAllRadioLibraryFiles(req: any, res: Response, next: NextFunction) {
+    try {
+      const deletedCount = await service.deleteAllRadioLibraryFiles(req.user.id);
+      res.status(200).json({ deletedCount });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async streamRadioLibraryFile(req: Request, res: Response, next: NextFunction) {
     try {
       const relativePath = typeof req.query.file === 'string' ? req.query.file : '';
-      const filePath = await service.getRadioLibraryFile(relativePath);
-      streamAudioFile(filePath, req, res, next);
+      const playback = await service.getRadioLibraryPlayback(relativePath);
+      if (playback.url) {
+        res.redirect(302, playback.url);
+        return;
+      }
+      streamAudioFile(playback.filePath!, req, res, next);
     } catch (error) {
       next(error);
     }
@@ -415,8 +432,12 @@ export class InstitutionalController {
   async streamRadioFile(req: Request, res: Response, next: NextFunction) {
     try {
       const { passport, filename } = req.params;
-      const filePath = await service.getAuthorizedRadioFile(passport, filename);
-      streamAudioFile(filePath, req, res, next);
+      const playback = await service.getAuthorizedRadioFile(passport, filename);
+      if (playback.url) {
+        res.redirect(302, playback.url);
+        return;
+      }
+      streamAudioFile(playback.filePath!, req, res, next);
     } catch (error) {
       next(error);
     }

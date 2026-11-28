@@ -14,6 +14,7 @@ import { AppError } from '../errors/AppError';
 import { AuditService } from './audit.service';
 import { NotificationService } from './notification.service';
 import { MedalService } from './medal.service';
+import { storageService } from './storage.service';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -25,6 +26,10 @@ function getRadioMusicRoot() {
     return path.resolve(process.env.RADIO_MUSIC_DIR.trim());
   }
 
+  if (process.env.RENDER_SERVICE_ID) {
+    return path.resolve('/var/data/musicas');
+  }
+
   const cwdRoot = path.resolve(process.cwd(), 'musicas');
   if (fs.existsSync(cwdRoot)) return cwdRoot;
 
@@ -33,6 +38,14 @@ function getRadioMusicRoot() {
 }
 
 export class InstitutionalService {
+  private usesRemoteRadioStorage() {
+    if (storageService.isConfigured()) return true;
+    if (env.NODE_ENV === 'production') {
+      throw new AppError('Armazenamento R2 não configurado. A biblioteca da rádio não pode usar disco temporário em produção.', 503, 'STORAGE_NOT_CONFIGURED');
+    }
+    return false;
+  }
+
   // --- PUBLIC PORTAL / SETTINGS ---
   async getPublicPortalData() {
     const [settingsRows, courses, publicEvents, mansions, featuredProjects] =
@@ -520,7 +533,7 @@ export class InstitutionalService {
       throw new AppError('Faixa de rádio não encontrada.', 404, 'AUDIO_FILE_NOT_FOUND');
     }
 
-    return this.getRadioLibraryFile(track.filePath);
+    return this.getRadioLibraryPlayback(track.filePath);
   }
 
   async getRadioData() {
@@ -536,23 +549,27 @@ export class InstitutionalService {
         .filter((track) => track.filePath)
         .map((track) => [track.filePath!.replace(/\\/g, '/'), track])
     );
-    const musicRoot = getRadioMusicRoot();
-    const libraryFiles: string[] = [];
+    const useRemoteStorage = this.usesRemoteRadioStorage();
+    let libraryFiles: string[] = [];
 
-    const scanDirectory = (directory: string, relativeDirectory = '') => {
-      if (!fs.existsSync(directory)) return;
-      for (const entry of fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
-        const relativePath = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name;
-        const absolutePath = path.join(directory, entry.name);
-        if (entry.isDirectory()) {
-          scanDirectory(absolutePath, relativePath);
-        } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.mp3')) {
-          libraryFiles.push(relativePath);
+    if (useRemoteStorage) {
+      libraryFiles = await storageService.listRadioFiles();
+    } else {
+      const scanDirectory = (directory: string, relativeDirectory = '') => {
+        if (!fs.existsSync(directory)) return;
+        for (const entry of fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+          const relativePath = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name;
+          const absolutePath = path.join(directory, entry.name);
+          if (entry.isDirectory()) {
+            scanDirectory(absolutePath, relativePath);
+          } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.mp3')) {
+            libraryFiles.push(relativePath);
+          }
         }
-      }
-    };
+      };
 
-    scanDirectory(musicRoot);
+      scanDirectory(getRadioMusicRoot());
+    }
 
     const tracks = libraryFiles.map((relativePath) => {
       const registeredTrack = approvedByFile.get(relativePath);
@@ -614,7 +631,6 @@ export class InstitutionalService {
     }
 
     const passport = profile.user.passport;
-    fs.mkdirSync(path.resolve(getRadioMusicRoot(), passport), { recursive: true });
 
     let playlist = await prisma.radioPlaylist.findUnique({
       where: { profileId: actorProfileId },
@@ -728,7 +744,7 @@ export class InstitutionalService {
       if (!selectedFilePath) {
         throw new AppError('Selecione um arquivo MP3 da biblioteca para aprovar o pedido.', 400, 'AUDIO_FILE_REQUIRED');
       }
-      await this.getRadioLibraryFile(selectedFilePath);
+      await this.assertRadioLibraryFileExists(selectedFilePath);
 
       playlist = await prisma.radioPlaylist.findUnique({
         where: { profileId: existing.authorId },
@@ -840,43 +856,97 @@ export class InstitutionalService {
       throw new AppError('O arquivo não parece ser um MP3 válido.', 400, 'INVALID_AUDIO_FILE');
     }
 
-    const root = path.resolve(getRadioMusicRoot());
-    const directory = path.resolve(root, passport);
-    const relativeDirectory = path.relative(root, directory);
-    if (relativeDirectory === '..' || relativeDirectory.startsWith(`..${path.sep}`) || path.isAbsolute(relativeDirectory)) {
-      throw new AppError('Pasta de destino inválida.', 400, 'INVALID_AUDIO_PATH');
-    }
-    fs.mkdirSync(directory, { recursive: true });
-    const realRoot = fs.realpathSync(root);
-    const realDirectory = fs.realpathSync(directory);
-    const realRelativeDirectory = path.relative(realRoot, realDirectory);
-    if (realRelativeDirectory === '..' || realRelativeDirectory.startsWith(`..${path.sep}`) || path.isAbsolute(realRelativeDirectory)) {
-      throw new AppError('Pasta de destino inválida.', 400, 'INVALID_AUDIO_PATH');
-    }
-
-    const filePath = path.join(realDirectory, filename);
-    if (fs.existsSync(filePath)) {
-      throw new AppError('Já existe um arquivo com esse nome nesta pasta.', 409, 'AUDIO_FILE_EXISTS');
-    }
-    fs.writeFileSync(filePath, buffer, { flag: 'wx' });
-
     const relativePath = `${passport}/${filename}`;
+    if (this.usesRemoteRadioStorage()) {
+      await storageService.uploadRadioFile(relativePath, buffer);
+    } else {
+      const root = path.resolve(getRadioMusicRoot());
+      const directory = path.resolve(root, passport);
+      const relativeDirectory = path.relative(root, directory);
+      if (relativeDirectory === '..' || relativeDirectory.startsWith(`..${path.sep}`) || path.isAbsolute(relativeDirectory)) {
+        throw new AppError('Pasta de destino inválida.', 400, 'INVALID_AUDIO_PATH');
+      }
+      fs.mkdirSync(directory, { recursive: true });
+      const realRoot = fs.realpathSync(root);
+      const realDirectory = fs.realpathSync(directory);
+      const realRelativeDirectory = path.relative(realRoot, realDirectory);
+      if (realRelativeDirectory === '..' || realRelativeDirectory.startsWith(`..${path.sep}`) || path.isAbsolute(realRelativeDirectory)) {
+        throw new AppError('Pasta de destino inválida.', 400, 'INVALID_AUDIO_PATH');
+      }
+      const filePath = path.join(realDirectory, filename);
+      if (fs.existsSync(filePath)) {
+        throw new AppError('Já existe um arquivo com esse nome nesta pasta.', 409, 'AUDIO_FILE_EXISTS');
+      }
+      fs.writeFileSync(filePath, buffer, { flag: 'wx' });
+    }
+
     await AuditService.log(actorUserId, 'RADIO_LIBRARY_UPLOAD', 'RadioLibraryFile', { filePath: relativePath });
     return { filePath: relativePath };
   }
 
   async deleteRadioLibraryFile(relativePath: string, actorUserId: string) {
-    const filePath = await this.getRadioLibraryFile(relativePath);
-    const linkedTrack = await prisma.radioTrack.findFirst({
-      where: { filePath: relativePath, status: 'ADICIONADA_PLAYLIST' },
-      select: { id: true, title: true },
+    return this.deleteRadioLibraryFiles([relativePath], actorUserId, 'RADIO_LIBRARY_DELETE');
+  }
+
+  async deleteAllRadioLibraryFiles(actorUserId: string) {
+    const { tracks } = await this.getRadioData();
+    const filePaths = tracks.map((track) => track.filePath).filter((filePath): filePath is string => Boolean(filePath));
+    return this.deleteRadioLibraryFiles(filePaths, actorUserId, 'RADIO_LIBRARY_BULK_DELETE');
+  }
+
+  private async deleteRadioLibraryFiles(relativePaths: string[], actorUserId: string, auditAction: string) {
+    const uniquePaths = [...new Set(relativePaths)];
+    if (uniquePaths.length === 0) return 0;
+
+    const useRemoteStorage = this.usesRemoteRadioStorage();
+    const files = await Promise.all(uniquePaths.map(async (relativePath) => {
+      if (useRemoteStorage) {
+        await storageService.assertRadioFileExists(relativePath);
+        return { relativePath };
+      }
+      return { relativePath, absolutePath: await this.getRadioLibraryFile(relativePath) };
+    }));
+    const linkedTracks = await prisma.radioTrack.findMany({
+      where: { filePath: { in: uniquePaths }, status: 'ADICIONADA_PLAYLIST' },
+      select: { id: true },
     });
-    if (linkedTrack) {
-      throw new AppError('Este MP3 está vinculado a uma playlist aprovada. Remova a associação antes de excluir o arquivo.', 409, 'AUDIO_FILE_IN_USE');
+
+    if (useRemoteStorage) {
+      for (const file of files) await storageService.deleteRadioFile(file.relativePath);
+    } else {
+      for (const file of files) fs.unlinkSync(file.absolutePath!);
     }
 
-    fs.unlinkSync(filePath);
-    await AuditService.log(actorUserId, 'RADIO_LIBRARY_DELETE', 'RadioLibraryFile', { filePath: relativePath });
+    const linkedTrackIds = linkedTracks.map((track) => track.id);
+    if (linkedTrackIds.length > 0) {
+      await prisma.radioPlaylistTrack.deleteMany({ where: { trackId: { in: linkedTrackIds } } });
+      await prisma.radioTrack.updateMany({
+        where: { id: { in: linkedTrackIds } },
+        data: { filePath: null },
+      });
+    }
+
+    await AuditService.log(actorUserId, auditAction, 'RadioLibraryFile', {
+      deletedCount: files.length,
+      detachedTrackCount: linkedTrackIds.length,
+    });
+    return files.length;
+  }
+
+  async getRadioLibraryPlayback(relativePath: string): Promise<{ filePath?: string; url?: string }> {
+    if (this.usesRemoteRadioStorage()) {
+      await this.assertRadioLibraryFileExists(relativePath);
+      return { url: await storageService.getRadioFileUrl(relativePath) };
+    }
+    return { filePath: await this.getRadioLibraryFile(relativePath) };
+  }
+
+  async assertRadioLibraryFileExists(relativePath: string): Promise<void> {
+    if (this.usesRemoteRadioStorage()) {
+      await storageService.assertRadioFileExists(relativePath);
+      return;
+    }
+    await this.getRadioLibraryFile(relativePath);
   }
 
   async getRadioLibraryFile(relativePath: string) {
@@ -936,12 +1006,7 @@ export class InstitutionalService {
       throw new AppError('Faixa não autorizada para reprodução.', 404, 'AUDIO_NOT_AUTHORIZED');
     }
 
-    const filePath = path.resolve(getRadioMusicRoot(), passport, filename);
-    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-      throw new AppError('Arquivo de áudio não encontrado.', 404, 'AUDIO_FILE_NOT_FOUND');
-    }
-
-    return filePath;
+    return this.getRadioLibraryPlayback(`${passport}/${filename}`);
   }
 
   // Os arquivos MP3 são adicionados manualmente pela Staff em musicas/PASSAPORTE/.

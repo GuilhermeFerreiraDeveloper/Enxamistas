@@ -150,6 +150,12 @@ router.post(
   controller.uploadRadioLibraryFile
 );
 router.delete(
+  '/radio/library/all',
+  authMiddleware,
+  permissionMiddleware('radio.manage', UserRole.ABELHA_PRINCESA),
+  controller.deleteAllRadioLibraryFiles
+);
+router.delete(
   '/radio/library',
   authMiddleware,
   permissionMiddleware('radio.manage', UserRole.ABELHA_PRINCESA),

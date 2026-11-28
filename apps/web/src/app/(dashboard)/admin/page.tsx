@@ -54,6 +54,8 @@ export default function AdminPage() {
   const [selectedRadioFiles, setSelectedRadioFiles] = useState<Record<string, string>>({});
   const [radioMusicPassport, setRadioMusicPassport] = useState('');
   const [radioMusicFile, setRadioMusicFile] = useState<File | null>(null);
+  const [radioLibraryFilter, setRadioLibraryFilter] = useState('');
+  const [deletingRadioLibrary, setDeletingRadioLibrary] = useState(false);
   const [uploadingRadioMusic, setUploadingRadioMusic] = useState(false);
 
   const hasAccess =
@@ -321,16 +323,40 @@ export default function AdminPage() {
   };
 
   const handleDeleteRadioMusic = async (filePath: string) => {
-    if (!window.confirm(`Excluir o arquivo ${filePath}?`)) return;
+    if (!window.confirm(`Excluir ${filePath}? Se estiver em uma playlist, a faixa também será removida dela.`)) return;
     try {
       await api.delete('/radio/library', { params: { file: filePath } });
       setRadioLibrary((current) => current.filter((file) => file.filePath !== filePath));
       setSelectedRadioFiles((current) => Object.fromEntries(
         Object.entries(current).filter(([, selectedFile]) => selectedFile !== filePath)
       ));
-      showToast('MP3 removido da biblioteca.', 'success');
+      showToast('MP3 removido da biblioteca e das playlists vinculadas.', 'success');
     } catch (err: any) {
       showToast(err.response?.data?.error || 'Erro ao excluir o MP3.', 'error');
+    }
+  };
+
+  const handleDeleteAllRadioMusic = async () => {
+    if (radioLibrary.length === 0 || deletingRadioLibrary) return;
+    const confirmed = window.confirm(
+      `Excluir permanentemente os ${radioLibrary.length} MP3(s) de todos os passaportes? As faixas também serão removidas das playlists dos membros. Essa ação não pode ser desfeita.`
+    );
+    if (!confirmed) return;
+
+    setDeletingRadioLibrary(true);
+    try {
+      const response = await api.delete('/radio/library/all');
+      setRadioLibrary([]);
+      setSelectedRadioFiles({});
+      setRadioRequests((current) => current.map((request) => (
+        request.filePath ? { ...request, filePath: null } : request
+      )));
+      showToast(`${response.data.deletedCount} MP3(s) removido(s) de todos os passaportes.`, 'success');
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Erro ao limpar a biblioteca de músicas.', 'error');
+      await loadTab('RADIO');
+    } finally {
+      setDeletingRadioLibrary(false);
     }
   };
 
@@ -805,11 +831,29 @@ export default function AdminPage() {
       {tab === 'RADIO' && (
         <div className="space-y-8">
           <section className="bg-graphite border border-white/5 p-5 rounded-sm space-y-4">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-sm font-bold uppercase tracking-widest text-royal-gold flex items-center gap-2">
                 <Radio size={14} /> Biblioteca MP3 ({radioLibrary.length})
               </h2>
-              <span className="text-[10px] text-white/40">Destino no servidor: musicas/{radioMusicPassport || 'PASSAPORTE'}/</span>
+              <span className="text-[10px] text-white/40">Destino no R2: musicas/{radioMusicPassport || 'PASSAPORTE'}/</span>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <input
+                aria-label="Filtrar biblioteca por música ou passaporte"
+                value={radioLibraryFilter}
+                onChange={(event) => setRadioLibraryFilter(event.target.value)}
+                placeholder="Filtrar por música ou passaporte..."
+                className="min-w-0 flex-1 rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-xs text-white"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={radioLibrary.length === 0 || deletingRadioLibrary}
+                onClick={handleDeleteAllRadioMusic}
+              >
+                <Trash2 size={12} /> {deletingRadioLibrary ? 'Excluindo...' : 'Excluir biblioteca inteira'}
+              </Button>
             </div>
             <form onSubmit={handleUploadRadioMusic} className="grid grid-cols-1 md:grid-cols-[1fr_2fr_auto] gap-3 items-end">
               <div className="space-y-1">
@@ -842,17 +886,25 @@ export default function AdminPage() {
             </form>
             <div className="space-y-2">
               {radioLibrary.length === 0 ? (
-                <p className="rounded-sm border border-white/5 bg-obsidian/50 p-4 text-xs text-white/40">Não há MP3s na pasta musicas/ do servidor.</p>
-              ) : radioLibrary.map((file: any) => (
+                <p className="rounded-sm border border-white/5 bg-obsidian/50 p-4 text-xs text-white/40">Não há MP3s na biblioteca R2 configurada.</p>
+              ) : radioLibrary.filter((file: any) => {
+                const query = radioLibraryFilter.trim().toLocaleLowerCase();
+                return !query || `${file.title} ${file.filePath}`.toLocaleLowerCase().includes(query);
+              }).length === 0 ? (
+                <p className="rounded-sm border border-white/5 bg-obsidian/50 p-4 text-xs text-white/40">Nenhuma música corresponde ao filtro.</p>
+              ) : radioLibrary.filter((file: any) => {
+                const query = radioLibraryFilter.trim().toLocaleLowerCase();
+                return !query || `${file.title} ${file.filePath}`.toLocaleLowerCase().includes(query);
+              }).map((file: any) => (
                 <div key={file.filePath} className="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-white/5 bg-obsidian/50 p-3">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-bold text-white">{file.title}</p>
-                    <p className="truncate text-[10px] text-white/40">{file.filePath}</p>
+                    <p className="truncate text-[10px] text-white/40">Passaporte / arquivo: {file.filePath}</p>
                   </div>
                   <audio
                     controls
                     preload="none"
-                    crossOrigin="use-credentials"
+                    crossOrigin="anonymous"
                     src={`${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(/\/$/, '')}/radio/library/stream?file=${encodeURIComponent(file.filePath)}`}
                     className="h-8 max-w-full"
                   />

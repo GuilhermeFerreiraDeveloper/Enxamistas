@@ -212,7 +212,7 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    audio.crossOrigin = 'use-credentials';
+    audio.crossOrigin = 'anonymous';
     audio.src = streamUrl;
     audio.load();
     audio.play().then(() => setIsPlaying(true)).catch(() => {

@@ -1,4 +1,6 @@
 import crypto from 'crypto';
+import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { env } from '../config/env';
 import { AppError } from '../errors/AppError';
 
@@ -82,6 +84,10 @@ function sha256Hex(data: Buffer | string): string {
 }
 
 export class StorageService {
+  private s3Client: S3Client | null = null;
+  private radioFilesCache: { expiresAt: number; files: string[] } | null = null;
+  private radioFilesRequest: Promise<string[]> | null = null;
+
   isConfigured(): boolean {
     return Boolean(
       env.STORAGE_ENDPOINT &&
@@ -89,6 +95,134 @@ export class StorageService {
         env.STORAGE_ACCESS_KEY &&
         env.STORAGE_SECRET_KEY
     );
+  }
+
+  private getS3Client(): S3Client {
+    if (!this.isConfigured()) {
+      throw new AppError('Armazenamento externo S3 não configurado.', 503, 'STORAGE_NOT_CONFIGURED');
+    }
+
+    if (!this.s3Client) {
+      this.s3Client = new S3Client({
+        endpoint: env.STORAGE_ENDPOINT,
+        region: 'auto',
+        forcePathStyle: true,
+        credentials: {
+          accessKeyId: env.STORAGE_ACCESS_KEY,
+          secretAccessKey: env.STORAGE_SECRET_KEY,
+        },
+      });
+    }
+
+    return this.s3Client;
+  }
+
+  private getRadioObjectKey(relativePath: string): string {
+    if (
+      !relativePath ||
+      relativePath.includes('\\') ||
+      relativePath.startsWith('/') ||
+      relativePath.split('/').some((part) => !part || part === '.' || part === '..') ||
+      !relativePath.toLowerCase().endsWith('.mp3')
+    ) {
+      throw new AppError('Caminho da música inválido.', 400, 'INVALID_AUDIO_PATH');
+    }
+
+    return `musicas/${relativePath}`;
+  }
+
+  async uploadRadioFile(relativePath: string, buffer: Buffer): Promise<void> {
+    const client = this.getS3Client();
+    const key = this.getRadioObjectKey(relativePath);
+
+    try {
+      await client.send(new HeadObjectCommand({ Bucket: env.STORAGE_BUCKET, Key: key }));
+      throw new AppError('Já existe um arquivo com esse nome nesta pasta.', 409, 'AUDIO_FILE_EXISTS');
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+      const name = (error as { name?: string }).name;
+      if (status !== 404 && name !== 'NotFound' && name !== 'NoSuchKey') throw error;
+    }
+
+    await client.send(new PutObjectCommand({
+      Bucket: env.STORAGE_BUCKET,
+      Key: key,
+      Body: buffer,
+      ContentType: 'audio/mpeg',
+    }));
+    this.radioFilesCache = null;
+  }
+
+  async listRadioFiles(): Promise<string[]> {
+    if (this.radioFilesCache && this.radioFilesCache.expiresAt > Date.now()) {
+      return [...this.radioFilesCache.files];
+    }
+    if (this.radioFilesRequest) return [...await this.radioFilesRequest];
+
+    this.radioFilesRequest = (async () => {
+      const client = this.getS3Client();
+      const files: string[] = [];
+      let continuationToken: string | undefined;
+
+      do {
+        const response = await client.send(new ListObjectsV2Command({
+          Bucket: env.STORAGE_BUCKET,
+          Prefix: 'musicas/',
+          ContinuationToken: continuationToken,
+        }));
+
+        for (const object of response.Contents || []) {
+          const key = object.Key;
+          if (key?.startsWith('musicas/') && key.toLowerCase().endsWith('.mp3')) {
+            files.push(key.slice('musicas/'.length));
+          }
+        }
+        continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
+      } while (continuationToken);
+
+      return files.sort((a, b) => a.localeCompare(b));
+    })();
+
+    try {
+      const files = await this.radioFilesRequest;
+      this.radioFilesCache = { files, expiresAt: Date.now() + 300_000 };
+      return [...files];
+    } finally {
+      this.radioFilesRequest = null;
+    }
+  }
+
+  async assertRadioFileExists(relativePath: string): Promise<void> {
+    try {
+      await this.getS3Client().send(new HeadObjectCommand({
+        Bucket: env.STORAGE_BUCKET,
+        Key: this.getRadioObjectKey(relativePath),
+      }));
+    } catch (error) {
+      const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+      const name = (error as { name?: string }).name;
+      if (status === 404 || name === 'NotFound' || name === 'NoSuchKey') {
+        throw new AppError('Arquivo de áudio não encontrado.', 404, 'AUDIO_FILE_NOT_FOUND');
+      }
+      throw error;
+    }
+  }
+
+  async getRadioFileUrl(relativePath: string): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: env.STORAGE_BUCKET,
+      Key: this.getRadioObjectKey(relativePath),
+    });
+    return getSignedUrl(this.getS3Client(), command, { expiresIn: 3600 });
+  }
+
+  async deleteRadioFile(relativePath: string): Promise<void> {
+    await this.getS3Client().send(new DeleteObjectCommand({
+      Bucket: env.STORAGE_BUCKET,
+      Key: this.getRadioObjectKey(relativePath),
+    }));
+    this.radioFilesCache = null;
   }
 
   getStatus() {
