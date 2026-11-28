@@ -57,6 +57,26 @@ function shuffled<T>(items: T[]): T[] {
   return result;
 }
 
+function getPlaybackErrorMessage(audio: HTMLAudioElement, error?: unknown): string {
+  const errorName = error instanceof Error ? error.name : '';
+  if (errorName === 'NotAllowedError') {
+    return 'O navegador bloqueou o início automático. Toque em play para iniciar a rádio.';
+  }
+  if (errorName === 'AbortError' || audio.error?.code === MediaError.MEDIA_ERR_ABORTED) {
+    return 'A reprodução foi interrompida durante a troca de faixa. Tente play novamente.';
+  }
+  if (errorName === 'NotSupportedError' || audio.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+    return 'Esta faixa não pode ser reproduzida. Verifique se o arquivo é um MP3 válido.';
+  }
+  if (audio.error?.code === MediaError.MEDIA_ERR_DECODE) {
+    return 'O arquivo MP3 está inválido ou corrompido.';
+  }
+  if (audio.error?.code === MediaError.MEDIA_ERR_NETWORK) {
+    return 'Falha ao carregar o áudio. Verifique a conexão, a URL da API e o CORS do bucket R2.';
+  }
+  return 'Não foi possível iniciar o áudio. Verifique a conexão e tente novamente.';
+}
+
 export function RadioProvider({ children }: { children: React.ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [tracks, setTracks] = useState<RadioTrackItem[]>([]);
@@ -108,8 +128,9 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
       autoNextRef.current();
     };
     const onError = () => {
+      if (audio.error?.code === MediaError.MEDIA_ERR_ABORTED) return;
       setIsPlaying(false);
-      setAudioError('Não foi possível reproduzir esta faixa; avançando para a próxima.');
+      setAudioError(getPlaybackErrorMessage(audio));
       autoNextRef.current(true);
     };
 
@@ -148,8 +169,8 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
       audio.play().then(() => {
         setIsPlaying(true);
         setAudioError(null);
-      }).catch(() => {
-        setAudioError('A reprodução continua bloqueada pelo navegador. Use o botão play da rádio.');
+      }).catch((error: unknown) => {
+        setAudioError(getPlaybackErrorMessage(audio, error));
       });
     };
 
@@ -215,9 +236,12 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
     audio.crossOrigin = 'anonymous';
     audio.src = streamUrl;
     audio.load();
-    audio.play().then(() => setIsPlaying(true)).catch(() => {
+    audio.play().then(() => {
+      setIsPlaying(true);
+      setAudioError(null);
+    }).catch((error: unknown) => {
       setIsPlaying(false);
-      setAudioError('O navegador bloqueou a reprodução automática. Use o botão play para iniciar.');
+      setAudioError(getPlaybackErrorMessage(audio, error));
     });
   };
 
@@ -302,9 +326,12 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
       setIsPlaying(false);
     } else {
       userPausedRef.current = false;
-      audio.play().then(() => setIsPlaying(true)).catch(() => {
+      audio.play().then(() => {
+        setIsPlaying(true);
+        setAudioError(null);
+      }).catch((error: unknown) => {
         setIsPlaying(false);
-        setAudioError('Falha ao retomar reprodução.');
+        setAudioError(getPlaybackErrorMessage(audio, error));
       });
     }
   };
