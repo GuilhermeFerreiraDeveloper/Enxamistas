@@ -94,6 +94,7 @@ O seed idempotente cadastra:
 3. **Frontend (Vercel Hobby):**
    - Root Directory: `apps/web` (ou monorepo com install na raiz)
    - Env var: `NEXT_PUBLIC_API_URL="https://sua-api.onrender.com/api"`
+   - As chamadas REST do navegador passam por um rewrite do Next.js em `/api` para a API do Render. Isso mantém o cookie de autenticação na mesma origem do site e evita bloqueios de cookies de terceiros; mantenha a variável configurada e faça um novo deploy do frontend após alterá-la.
 
 ---
 
