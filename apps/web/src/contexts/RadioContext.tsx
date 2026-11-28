@@ -233,7 +233,7 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    audio.crossOrigin = 'anonymous';
+    audio.removeAttribute('crossorigin');
     audio.src = streamUrl;
     audio.load();
     audio.play().then(() => {
@@ -282,7 +282,7 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
     }
 
     setIsPlaying(false);
-    setAudioError('Nenhuma faixa da biblioteca pôde ser reproduzida.');
+    if (!failed) setAudioError('Não há outra faixa disponível para reprodução.');
   };
 
   playTrackRef.current = playTrack;

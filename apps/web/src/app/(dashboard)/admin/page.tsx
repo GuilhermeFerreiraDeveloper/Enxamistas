@@ -904,7 +904,6 @@ export default function AdminPage() {
                   <audio
                     controls
                     preload="none"
-                    crossOrigin="anonymous"
                     src={`${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api').replace(/\/$/, '')}/radio/library/stream?file=${encodeURIComponent(file.filePath)}`}
                     className="h-8 max-w-full"
                   />
