@@ -74,6 +74,18 @@ input[type="range"] {
   }
 }
 
+@layer base {
+  input:not([type="range"]),
+  textarea,
+  select {
+    border-radius: 0.9rem;
+  }
+
+  input[type="range"] {
+    accent-color: var(--royal-gold);
+  }
+}
+
 @layer components {
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 bg-gradient-to-r from-royal-gold to-[#D8AE56] hover:from-[#D8AE56] hover:to-honey text-obsidian font-bold py-2.5 px-6 rounded-xl transition-all duration-300 tracking-wider uppercase text-xs shadow-gold-glow hover:-translate-y-0.5 hover:shadow-xl;
@@ -85,10 +97,11 @@ input[type="range"] {
 
   .card-honeycomb {
     @apply bg-graphite/75 border border-royal-gold/20 rounded-2xl p-6 shadow-premium hover:border-royal-gold/50 hover:shadow-gold-glow hover:-translate-y-1 transition-all duration-300 relative;
+    background-image: linear-gradient(145deg, rgba(196, 154, 72, 0.055), transparent 48%);
   }
 
   .surface-glass {
-    @apply border border-white/10 bg-white/[0.045] shadow-premium backdrop-blur-xl;
+    @apply rounded-2xl border border-white/10 bg-white/[0.045] shadow-premium backdrop-blur-xl;
   }
 
   .eyebrow {
@@ -119,6 +132,48 @@ input[type="range"] {
 
 .honeycomb-glow {
   background: radial-gradient(circle at 50% 0%, rgba(230, 168, 46, 0.14), transparent 65%);
+}
+
+.site-atmosphere {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background-image:
+    radial-gradient(ellipse at 4% 42%, rgba(241, 141, 131, 0.045), transparent 26rem),
+    radial-gradient(ellipse at 96% 72%, rgba(184, 154, 247, 0.055), transparent 30rem);
+}
+
+.site-atmosphere::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background-image: url('/honeycomb-pattern.svg');
+  background-size: 76px 132px;
+  opacity: 0.075;
+  mask-image: linear-gradient(135deg, black, transparent 70%);
+}
+
+.pollen-dot {
+  position: absolute;
+  width: 0.45rem;
+  height: 0.45rem;
+  border: 1px solid rgba(229, 211, 162, 0.38);
+  border-radius: 38% 62% 55% 45%;
+  background: rgba(230, 168, 46, 0.12);
+  box-shadow: 0 0 20px rgba(230, 168, 46, 0.15);
+  animation: pollen-float 12s ease-in-out infinite alternate;
+}
+
+.pollen-one { top: 21%; left: 8%; }
+.pollen-two { top: 34%; right: 12%; width: 0.65rem; height: 0.65rem; border-color: rgba(184, 154, 247, 0.42); background: rgba(184, 154, 247, 0.12); animation-delay: -4s; }
+.pollen-three { top: 72%; left: 17%; width: 0.35rem; height: 0.35rem; animation-delay: -8s; }
+.pollen-four { top: 82%; right: 24%; width: 0.55rem; height: 0.55rem; border-color: rgba(134, 214, 187, 0.4); background: rgba(134, 214, 187, 0.1); animation-delay: -2s; }
+
+@keyframes pollen-float {
+  from { transform: translate3d(0, 0, 0) rotate(0deg); }
+  to { transform: translate3d(1rem, -1.5rem, 0) rotate(35deg); }
 }
 
 .hive-gallery-grid {
@@ -200,6 +255,12 @@ input[type="range"] {
 .hive-gallery-delete:hover {
   background: rgba(127, 29, 29, 0.9);
   color: #fecaca;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pollen-dot {
+    animation: none;
+  }
 }
 
 @media (max-width: 640px) {

@@ -7,7 +7,13 @@ import { MascotCompanion } from '@/components/MascotCompanion';
 export function GlobalRadioShell({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <div className="pb-28 sm:pb-24">{children}</div>
+      <div className="site-atmosphere" aria-hidden="true">
+        <span className="pollen-dot pollen-one" />
+        <span className="pollen-dot pollen-two" />
+        <span className="pollen-dot pollen-three" />
+        <span className="pollen-dot pollen-four" />
+      </div>
+      <div className="relative z-10 pb-28 sm:pb-24">{children}</div>
       <MascotCompanion />
       <RadioBar />
     </>
