@@ -45,7 +45,7 @@ export default function LoginPage() {
       {/* Left Side - Content/Branding */}
       <div className="hidden lg:flex flex-1 flex-col justify-between p-16 relative z-10 border-r border-white/5 bg-black/20">
         <Link href="/" className="flex items-center gap-4 group">
-          <img src="/logos/Logo-2.png" alt="Enxamistas" className="w-12 h-12 object-contain group-hover:scale-110 transition-transform duration-500" />
+          <img src="/icon.png" alt="Enxamistas" className="w-12 h-12 object-contain group-hover:scale-110 transition-transform duration-500" />
           <span className="text-2xl font-bold tracking-[0.3em] text-white">ENXAMISTAS</span>
         </Link>
 

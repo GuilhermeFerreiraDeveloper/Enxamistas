@@ -29,7 +29,7 @@ export function Navbar() {
           <Link href="/" className="flex items-center gap-3 group">
             <div className="w-11 h-11 hex-badge bg-royal-gold/10 border border-royal-gold/30 flex items-center justify-center p-1.5 group-hover:scale-110 transition-transform duration-500">
               <img
-                src="/logos/Logo-2.png"
+                src="/icon.png"
                 alt="Enxamistas"
                 className="w-full h-full object-contain"
               />

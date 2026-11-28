@@ -397,7 +397,7 @@ export default function Home() {
       <footer className="relative z-10 py-14 px-6 md:px-16 border-t border-royal-gold/15 text-center">
         <div className="flex flex-col items-center gap-6">
           <div className="w-16 h-16 hex-badge bg-royal-gold/10 border border-royal-gold/30 flex items-center justify-center p-2">
-            <img src="/logos/Logo-2.png" alt="Enxamistas" className="w-full h-full object-contain" />
+            <img src="/icon.png" alt="Enxamistas" className="w-full h-full object-contain" />
           </div>
 
           {socialLinks.length > 0 ? (
