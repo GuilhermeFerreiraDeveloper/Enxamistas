@@ -12,9 +12,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'primary', size = 'md', isLoading, children, ...props }, ref) => {
     const variants = {
       primary: 'btn-primary',
-      secondary: 'bg-white/5 text-white hover:bg-white/10 border border-white/5',
-      outline: 'bg-transparent border border-royal-gold/30 text-royal-gold hover:bg-royal-gold/5',
-      ghost: 'bg-transparent text-white/50 hover:text-white hover:bg-white/5',
+      secondary: 'bg-white/[0.06] text-white border border-white/10 hover:bg-white/[0.1] hover:border-white/15',
+      outline: 'bg-transparent border border-royal-gold/35 text-honey hover:bg-royal-gold/10 hover:border-royal-gold/60',
+      ghost: 'bg-transparent text-white/60 hover:text-white hover:bg-white/[0.06]',
     };
 
     const sizes = {
@@ -27,7 +27,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         className={cn(
-          'relative flex min-h-11 min-w-0 max-w-full items-center justify-center rounded-sm text-center leading-snug transition-all duration-300 font-bold uppercase tracking-[0.12em] whitespace-normal break-words disabled:opacity-40 disabled:cursor-not-allowed group active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-royal-gold focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian',
+          'relative flex min-h-11 min-w-0 max-w-full items-center justify-center rounded-xl text-center text-xs leading-snug transition-all duration-200 font-bold uppercase tracking-[0.1em] whitespace-normal break-words disabled:opacity-40 disabled:cursor-not-allowed group active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-royal-gold focus-visible:ring-offset-2 focus-visible:ring-offset-obsidian',
           variants[variant],
           sizes[size],
           className

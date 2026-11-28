@@ -68,6 +68,12 @@ input[type="range"] {
   outline-offset: 3px;
 }
 
+@layer utilities {
+  .rounded-sm {
+    border-radius: 0.75rem;
+  }
+}
+
 @layer components {
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 bg-gradient-to-r from-royal-gold to-[#D8AE56] hover:from-[#D8AE56] hover:to-honey text-obsidian font-bold py-2.5 px-6 rounded-xl transition-all duration-300 tracking-wider uppercase text-xs shadow-gold-glow hover:-translate-y-0.5 hover:shadow-xl;

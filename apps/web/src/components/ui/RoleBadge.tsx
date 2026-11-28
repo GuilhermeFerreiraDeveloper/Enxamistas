@@ -33,7 +33,7 @@ export function RoleBadge({ role, className }: { role?: string; className?: stri
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm border text-[10px] font-bold uppercase tracking-[0.15em]',
+        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em]',
         style,
         className
       )}
