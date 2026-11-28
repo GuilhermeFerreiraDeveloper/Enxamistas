@@ -21,6 +21,26 @@ router.get('/status', authMiddleware, (_req, res) => {
   res.status(200).json(storageService.getStatus());
 });
 
+router.get('/gallery/:ownerId/:filename', async (req, res, next) => {
+  try {
+    const { ownerId, filename } = req.params;
+    if (!/^[0-9a-f-]{36}$/i.test(ownerId) || !/^[0-9a-f-]{36}\.(jpg|png|webp)$/i.test(filename)) {
+      throw new AppError('Caminho de imagem inválido.', 400, 'INVALID_KEY');
+    }
+
+    const file = await storageService.fetchPrivateObject(`gallery/${ownerId}/${filename}`);
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.contentType)) {
+      throw new AppError('Tipo de imagem inválido no armazenamento.', 415, 'INVALID_FILE_TYPE');
+    }
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.status(200).send(file.buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post(
   '/:scope',
   authMiddleware,

@@ -3,6 +3,7 @@ import { PostInput, CommentInput, ReportInput, RoleHierarchy, UserRole } from '@
 import { AppError } from '../errors/AppError';
 import { AuditService } from './audit.service';
 import { NotificationService } from './notification.service';
+import { env } from '../config/env';
 
 const notificationService = new NotificationService();
 
@@ -40,7 +41,7 @@ export class FeedService {
         caption: photo.caption,
         authorId: photo.profileId,
         author: photo.profile,
-        image: photo.imageUrl,
+        image: this.getGalleryImagePath(photo.imageUrl),
         createdAt: photo.createdAt,
         isMine: photo.profileId === viewerProfileId,
       })),
@@ -48,6 +49,28 @@ export class FeedService {
       page: pageNum,
       hasMore: pageNum * limitNum < total,
     };
+  }
+
+  private getGalleryImagePath(imageUrl: string) {
+    const galleryPathPattern = /^uploads\/gallery\/([0-9a-f-]{36}\/(?:[0-9a-f-]{36})\.(?:jpg|png|webp))$/i;
+    const storedPath = imageUrl.replace(/^\/+/, '');
+    if (galleryPathPattern.test(storedPath)) return storedPath;
+
+    try {
+      const imageUrlObject = new URL(imageUrl);
+      const storageEndpoint = new URL(env.STORAGE_ENDPOINT);
+      const bucketPath = `${storageEndpoint.pathname.replace(/\/$/, '')}/${env.STORAGE_BUCKET}/gallery/`;
+      if (imageUrlObject.origin === storageEndpoint.origin && imageUrlObject.pathname.startsWith(bucketPath)) {
+        const key = imageUrlObject.pathname.slice(bucketPath.length);
+        if (/^[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp)$/i.test(key)) {
+          return `uploads/gallery/${key}`;
+        }
+      }
+    } catch {
+      return imageUrl;
+    }
+
+    return imageUrl;
   }
 
   async createGalleryPhoto(profileId: string, data: { imageUrl: string; caption?: string }) {
@@ -59,14 +82,24 @@ export class FeedService {
     }
 
     const imageUrl = data.imageUrl.trim();
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(imageUrl);
-    } catch {
-      throw new AppError('A imagem enviada possui uma URL inválida.', 400, 'INVALID_GALLERY_IMAGE');
-    }
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-      throw new AppError('A imagem enviada possui uma URL inválida.', 400, 'INVALID_GALLERY_IMAGE');
+    const galleryPathPattern = new RegExp(
+      `^uploads/gallery/${profileId}/[0-9a-f-]{36}\\.(jpg|png|webp)$`,
+      'i'
+    );
+    if (imageUrl.startsWith('uploads/')) {
+      if (!galleryPathPattern.test(imageUrl)) {
+        throw new AppError('A imagem enviada não pertence ao seu perfil.', 400, 'INVALID_GALLERY_IMAGE');
+      }
+    } else {
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(imageUrl);
+      } catch {
+        throw new AppError('A imagem enviada possui uma URL inválida.', 400, 'INVALID_GALLERY_IMAGE');
+      }
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        throw new AppError('A imagem enviada possui uma URL inválida.', 400, 'INVALID_GALLERY_IMAGE');
+      }
     }
 
     return prisma.galleryPhoto.create({

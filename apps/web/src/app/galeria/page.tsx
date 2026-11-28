@@ -8,6 +8,12 @@ import { FileUploadZone } from '@/components/ui/FileUploadZone';
 import { useAuth } from '@/contexts/AuthContext';
 import api from '@/lib/api';
 
+function getGalleryImageUrl(imagePath: string) {
+  if (/^https?:\/\//i.test(imagePath)) return imagePath;
+  const apiBase = (api.defaults.baseURL || '').replace(/\/$/, '');
+  return `${apiBase}/${imagePath.replace(/^\/+/, '')}`;
+}
+
 interface GalleryPhoto {
   id: string;
   image: string;
@@ -39,7 +45,11 @@ export default function GalleryPage() {
     else setLoading(true);
     try {
       const response = await api.get('/feed/gallery', { params: { page: requestedPage } });
-      setPhotos((current) => append ? [...current, ...response.data.items] : response.data.items);
+      const loadedPhotos = response.data.items.map((photo: GalleryPhoto) => ({
+        ...photo,
+        image: getGalleryImageUrl(photo.image),
+      }));
+      setPhotos((current) => append ? [...current, ...loadedPhotos] : loadedPhotos);
       setPage(response.data.page);
       setTotal(response.data.total);
       setHasMore(response.data.hasMore);

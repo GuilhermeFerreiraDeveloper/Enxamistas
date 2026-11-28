@@ -217,7 +217,11 @@ export class StorageService {
 
     return {
       key,
-      url: isPrivate ? `/api/uploads/private/${encodeURIComponent(key)}` : targetUrl,
+      url: isPrivate
+        ? `/api/uploads/private/${encodeURIComponent(key)}`
+        : params.scope === 'gallery'
+          ? `uploads/gallery/${params.ownerId}/${id}.${ext}`
+          : targetUrl,
       isPrivate,
     };
   }
