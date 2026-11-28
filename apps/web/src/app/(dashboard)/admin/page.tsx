@@ -389,7 +389,7 @@ export default function AdminPage() {
         <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-royal-gold">
           Governança da Colmeia
         </span>
-        <h1 className="text-4xl font-bold text-white uppercase tracking-tight">
+        <h1 className="text-3xl font-bold uppercase tracking-tight text-white sm:text-4xl">
           Painel Administrativo
         </h1>
       </div>
@@ -464,14 +464,14 @@ export default function AdminPage() {
 
       {tab === 'MEMBERS' && (
         <div className="space-y-4">
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row">
             <input
               placeholder="Pesquisar membro por nome ou passaporte..."
               value={memberQuery}
               onChange={(e) => setMemberQuery(e.target.value)}
-              className="flex-1 bg-graphite border border-white/10 rounded-sm px-4 py-2 text-xs text-white"
+              className="min-w-0 w-full flex-1 rounded-sm border border-white/10 bg-graphite px-4 py-2 text-xs text-white"
             />
-            <Button size="sm" onClick={() => loadTab('MEMBERS')}>
+            <Button size="sm" className="sm:w-auto" onClick={() => loadTab('MEMBERS')}>
               Buscar
             </Button>
           </div>
@@ -521,10 +521,11 @@ export default function AdminPage() {
           </div>
 
           {editingMember && (
-            <section className="space-y-6 border border-royal-gold/25 bg-graphite p-6 sm:p-8">
-              <div className="flex items-start justify-between gap-4">
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-2 backdrop-blur-sm sm:p-6">
+              <section role="dialog" aria-modal="true" aria-labelledby="member-editor-title" className="max-h-[calc(100vh-1rem)] w-full max-w-5xl space-y-6 overflow-y-auto border border-royal-gold/25 bg-graphite p-4 shadow-2xl sm:max-h-[calc(100vh-3rem)] sm:p-8">
+                <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-bold uppercase tracking-widest text-royal-gold">Gerenciar membro</h2>
+                  <h2 id="member-editor-title" className="text-lg font-bold uppercase tracking-widest text-royal-gold">Gerenciar membro</h2>
                   <p className="mt-1 text-xs text-white/50">{editingMember.profile?.name} • passaporte #{editingMember.passport}</p>
                 </div>
                 <Button type="button" variant="ghost" onClick={() => setEditingMember(null)}>Fechar</Button>
@@ -558,7 +559,7 @@ export default function AdminPage() {
               <div className="space-y-4 border-t border-white/10 pt-5">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-white">Formação e conclusão de cursos</h3>
                 <div className="flex flex-wrap gap-3">
-                  <select value={mainCourseId} onChange={(event) => setMainCourseId(event.target.value)} className="min-w-60 flex-1 rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm text-white">
+                  <select value={mainCourseId} onChange={(event) => setMainCourseId(event.target.value)} className="w-full min-w-0 flex-1 rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm text-white sm:min-w-60">
                     <option value="">Definir curso principal</option>
                     {courses.map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
                   </select>
@@ -566,11 +567,11 @@ export default function AdminPage() {
                 </div>
                 <p className="text-xs text-white/50">Curso principal atual: {editingMember.profile?.mainCourse?.name || 'não definido'}</p>
                 <div className="flex flex-wrap gap-3">
-                  <select value={completionCourseId} onChange={(event) => setCompletionCourseId(event.target.value)} className="min-w-60 flex-1 rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm text-white">
+                  <select value={completionCourseId} onChange={(event) => setCompletionCourseId(event.target.value)} className="w-full min-w-0 flex-1 rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm text-white sm:min-w-60">
                     <option value="">Selecione um curso para revisar</option>
                     {courses.map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
                   </select>
-                  <input value={completionNotes} onChange={(event) => setCompletionNotes(event.target.value)} placeholder="Observação ou motivo da reprovação" className="min-w-60 flex-1 rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm text-white" />
+                  <input value={completionNotes} onChange={(event) => setCompletionNotes(event.target.value)} placeholder="Observação ou motivo da reprovação" className="w-full min-w-0 flex-1 rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm text-white sm:min-w-60" />
                   <Button type="button" disabled={!completionCourseId} onClick={() => handleReviewMemberCourse('APPROVED')}>Aprovar e concluir</Button>
                   <Button type="button" variant="secondary" disabled={!completionCourseId || completionNotes.trim().length < 3} onClick={() => handleReviewMemberCourse('REJECTED')}>Reprovar curso</Button>
                 </div>
@@ -594,11 +595,11 @@ export default function AdminPage() {
               <div className="space-y-4 border-t border-white/10 pt-5">
                 <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white"><Award size={15} className="text-royal-gold" /> Medalhas do membro</h3>
                 <div className="flex flex-wrap gap-3">
-                  <select value={selectedMedalId} onChange={(event) => setSelectedMedalId(event.target.value)} className="min-w-60 flex-1 rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm text-white">
+                  <select value={selectedMedalId} onChange={(event) => setSelectedMedalId(event.target.value)} className="w-full min-w-0 flex-1 rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm text-white sm:min-w-60">
                     <option value="">Selecione uma medalha para conceder</option>
                     {medalCatalog.map((medal) => <option key={medal.id} value={medal.id}>{medal.name}{medal.course?.name ? ` · ${medal.course.name}` : ''}</option>)}
                   </select>
-                  <input value={medalReason} onChange={(event) => setMedalReason(event.target.value)} placeholder="Motivo da concessão (opcional)" className="min-w-60 flex-1 rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm text-white" />
+                  <input value={medalReason} onChange={(event) => setMedalReason(event.target.value)} placeholder="Motivo da concessão (opcional)" className="w-full min-w-0 flex-1 rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm text-white sm:min-w-60" />
                   <Button type="button" disabled={!selectedMedalId} onClick={handleGrantMemberMedal}>Conceder medalha</Button>
                 </div>
                 <div className="space-y-2">
@@ -614,7 +615,8 @@ export default function AdminPage() {
                   {!(editingMember.profile?.medals || []).length && <p className="text-xs text-white/40">Este membro ainda não recebeu medalhas.</p>}
                 </div>
               </div>
-            </section>
+              </section>
+            </div>
           )}
         </div>
       )}

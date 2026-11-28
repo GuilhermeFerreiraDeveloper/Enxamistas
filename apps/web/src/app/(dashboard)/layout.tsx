@@ -2,8 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { RadioProvider } from '@/contexts/RadioContext';
-import { RadioBar } from '@/components/RadioBar';
 import { RoleHierarchy, UserRole } from '@enxamistas/shared';
 import api from '@/lib/api';
 import {
@@ -20,6 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Menu,
+  Home,
   Megaphone,
   Radio,
   Crown,
@@ -112,8 +111,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const firstName = profileName.split(' ')[0];
 
   return (
-    <RadioProvider>
-      <div className="min-h-screen bg-obsidian text-ivory selection:bg-royal-gold selection:text-obsidian flex">
+      <div className="min-h-screen min-w-0 overflow-x-clip bg-obsidian text-ivory selection:bg-royal-gold selection:text-obsidian flex">
         {isMobileOpen && (
           <div
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
@@ -150,6 +148,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               )}
             </Link>
           </div>
+
+          <Link
+            href="/"
+            onClick={() => setIsMobileOpen(false)}
+            title="Voltar ao site público"
+            className={cn(
+              'mx-3 mt-4 flex min-h-11 items-center gap-3 rounded-sm border border-royal-gold/20 bg-royal-gold/5 px-3 text-royal-gold transition-colors hover:bg-royal-gold/10',
+              isCollapsed && 'justify-center px-0'
+            )}
+          >
+            <Home size={17} className="shrink-0" />
+            {!isCollapsed && <span className="text-[10px] font-bold uppercase tracking-widest">Voltar ao site</span>}
+          </Link>
 
           <nav className="flex-1 overflow-y-auto overflow-x-hidden py-6">
             {sidebarItems.map((group) => (
@@ -247,7 +258,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             isCollapsed ? 'lg:pl-20' : 'lg:pl-72'
           )}
         >
-          <header className="h-20 flex items-center justify-between px-6 md:px-8 border-b border-white/5 sticky top-0 bg-obsidian/85 backdrop-blur-xl z-30">
+          <header className="sticky top-0 z-30 flex h-16 min-w-0 items-center justify-between gap-3 border-b border-white/5 bg-obsidian/85 px-4 backdrop-blur-xl sm:h-20 sm:px-6 md:px-8">
             <div className="flex items-center gap-4">
               <button
                 className="lg:hidden text-white/70 hover:text-royal-gold"
@@ -290,11 +301,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </header>
 
-          <main className="flex-1 p-6 md:p-10 relative">
-            <div className="max-w-7xl mx-auto relative">{children}</div>
+          <main className="relative min-w-0 flex-1 p-4 sm:p-6 md:p-10">
+            <div className="relative mx-auto w-full max-w-7xl min-w-0">{children}</div>
           </main>
 
-          <footer className="py-6 px-8 border-t border-white/5 text-[10px] font-bold uppercase tracking-[0.3em] text-white/25 flex flex-wrap justify-between items-center gap-4 bg-black/20 mb-14">
+          <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-white/5 bg-black/20 px-4 py-6 text-[10px] font-bold uppercase tracking-[0.2em] text-white/25 sm:px-8">
             <span>© 2026 ENXAMISTAS ORGANIZAÇÃO</span>
             <div className="flex gap-6">
               <Link href="/lore" className="hover:text-royal-gold">Lore</Link>
@@ -305,9 +316,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </footer>
         </div>
-
-        <RadioBar />
       </div>
-    </RadioProvider>
   );
 }

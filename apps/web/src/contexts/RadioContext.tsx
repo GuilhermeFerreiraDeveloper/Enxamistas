@@ -1,6 +1,8 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import api from '@/lib/api';
 
 export interface RadioTrackItem {
   id: string;
@@ -21,6 +23,8 @@ interface RadioContextType {
   currentTrack: RadioTrackItem | null;
   isPlaying: boolean;
   volume: number;
+  isMuted: boolean;
+  toggleMute: () => void;
   progress: number;
   duration: number;
   audioError: string | null;
@@ -45,17 +49,28 @@ interface RadioContextType {
 
 const RadioContext = createContext<RadioContextType>({} as RadioContextType);
 
+function shuffled<T>(items: T[]): T[] {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [result[index], result[randomIndex]] = [result[randomIndex], result[index]];
+  }
+  return result;
+}
+
 export function RadioProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [tracks, setTracks] = useState<RadioTrackItem[]>([]);
   const [currentTrack, setCurrentTrack] = useState<RadioTrackItem | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolumeState] = useState(0.6);
+  const [isMuted, setIsMuted] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [shuffle, setShuffle] = useState(false);
+  const [shuffle, setShuffle] = useState(true);
   const [loop, setLoop] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
   const [myRequests, setMyRequests] = useState<RadioTrackItem[]>([]);
@@ -63,6 +78,8 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   const tracksRef = useRef(tracks);
   const currentTrackRef = useRef(currentTrack);
   const failedTrackIdsRef = useRef(new Set<string>());
+  const shuffleQueueRef = useRef<string[]>([]);
+  const userPausedRef = useRef(false);
   const playTrackRef = useRef<(track: RadioTrackItem) => void>(() => {});
   const autoNextRef = useRef<(failed?: boolean) => void>(() => {});
   tracksRef.current = tracks;
@@ -119,12 +136,62 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
 
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.muted = isMuted;
+  }, [isMuted]);
+
+  useEffect(() => {
+    const resumeOnInteraction = (event: Event) => {
+      if (event.type === 'keydown' && !['Enter', ' '].includes((event as KeyboardEvent).key)) return;
+      if (event.target instanceof Element && event.target.closest('[data-radio-controls]')) return;
+
+      const audio = audioRef.current;
+      if (!audio || audio.paused === false || userPausedRef.current || !currentTrackRef.current) return;
+      audio.play().then(() => {
+        setIsPlaying(true);
+        setAudioError(null);
+      }).catch(() => {
+        setAudioError('A reprodução continua bloqueada pelo navegador. Use o botão play da rádio.');
+      });
+    };
+
+    document.addEventListener('pointerdown', resumeOnInteraction, true);
+    document.addEventListener('keydown', resumeOnInteraction, true);
+    return () => {
+      document.removeEventListener('pointerdown', resumeOnInteraction, true);
+      document.removeEventListener('keydown', resumeOnInteraction, true);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    let active = true;
+    const loadLibrary = async () => {
+      try {
+        const response = await api.get('/radio');
+        if (active) setTracks(Array.isArray(response.data?.tracks) ? response.data.tracks : []);
+      } catch {
+        if (active) setAudioError('Não foi possível carregar a biblioteca da rádio.');
+      }
+    };
+
+    void loadLibrary();
+    const intervalId = window.setInterval(() => void loadLibrary(), 60000);
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [user]);
+
   const playTrack = (track: RadioTrackItem) => {
+    userPausedRef.current = false;
     setAudioError(null);
     setCurrentTrack(track);
     currentTrackRef.current = track;
     setProgress(0);
     setDuration(0);
+    shuffleQueueRef.current = shuffleQueueRef.current.filter((trackId) => trackId !== track.id);
 
     const audio = audioRef.current;
     if (!audio) return;
@@ -152,21 +219,40 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const handleAutoNext = (failed = false) => {
+  const takeNextTrack = () => {
     const playlist = tracksRef.current;
-    if (playlist.length === 0) return;
+    if (!playlist.length) return null;
 
+    const currentId = currentTrackRef.current?.id;
+    const failedIds = failedTrackIdsRef.current;
+    const availableIds = new Set(playlist.map((track) => track.id));
+    shuffleQueueRef.current = shuffleQueueRef.current.filter(
+      (id) => availableIds.has(id) && id !== currentId && !failedIds.has(id)
+    );
+
+    while (shuffleQueueRef.current.length) {
+      const nextId = shuffleQueueRef.current.shift();
+      const next = playlist.find((track) => track.id === nextId);
+      if (next) return next;
+    }
+
+    const remaining = shuffled(playlist.filter((track) => track.id !== currentId && !failedIds.has(track.id)));
+    if (remaining.length) {
+      shuffleQueueRef.current = remaining.slice(1).map((track) => track.id);
+      return remaining[0];
+    }
+
+    return playlist.find((track) => !failedIds.has(track.id)) || null;
+  };
+
+  const handleAutoNext = (failed = false) => {
     const current = currentTrackRef.current;
     if (failed && current) failedTrackIdsRef.current.add(current.id);
-    const currentIndex = current ? playlist.findIndex((track) => track.id === current.id) : -1;
 
-    for (let offset = 1; offset <= playlist.length; offset += 1) {
-      const index = (currentIndex + offset + playlist.length) % playlist.length;
-      const candidate = playlist[index];
-      if (!failedTrackIdsRef.current.has(candidate.id)) {
-        playTrackRef.current(candidate);
-        return;
-      }
+    const next = takeNextTrack();
+    if (next) {
+      playTrackRef.current(next);
+      return;
     }
 
     setIsPlaying(false);
@@ -177,11 +263,26 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   autoNextRef.current = handleAutoNext;
 
   useEffect(() => {
-    if (tracks.length > 0 && !currentTrack) {
-      playTrack(tracks[0]);
-      setIsLoaded(true);
+    if (!tracks.length) return;
+
+    const currentId = currentTrackRef.current?.id;
+    const validIds = new Set(tracks.map((track) => track.id));
+    shuffleQueueRef.current = shuffleQueueRef.current.filter(
+      (id) => validIds.has(id) && id !== currentId && !failedTrackIdsRef.current.has(id)
+    );
+    const queuedIds = new Set(shuffleQueueRef.current);
+    const newTracks = tracks.filter(
+      (track) => track.id !== currentId && !queuedIds.has(track.id) && !failedTrackIdsRef.current.has(track.id)
+    );
+    shuffleQueueRef.current.push(...shuffled(newTracks).map((track) => track.id));
+    setIsLoaded(true);
+
+    if (!currentId && shuffleQueueRef.current.length) {
+      const firstTrackId = shuffleQueueRef.current.shift();
+      const firstTrack = tracks.find((track) => track.id === firstTrackId);
+      if (firstTrack) playTrackRef.current(firstTrack);
     }
-  }, [tracks, currentTrack]);
+  }, [tracks]);
 
   const togglePlay = () => {
     if (!currentTrack) return;
@@ -189,9 +290,11 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
     const audio = audioRef.current;
     if (!audio) return;
     if (isPlaying) {
+      userPausedRef.current = true;
       audio.pause();
       setIsPlaying(false);
     } else {
+      userPausedRef.current = false;
       audio.play().then(() => setIsPlaying(true)).catch(() => {
         setIsPlaying(false);
         setAudioError('Falha ao retomar reprodução.');
@@ -200,9 +303,7 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   };
 
   const nextTrack = () => {
-    if (!tracks.length) return;
-    const idx = currentTrack ? tracks.findIndex((t) => t.id === currentTrack.id) : -1;
-    const next = tracks[(idx + 1) % tracks.length];
+    const next = takeNextTrack();
     if (next) playTrack(next);
   };
 
@@ -216,7 +317,11 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   const setVolume = (v: number) => {
     const clamped = Math.min(1, Math.max(0, v));
     setVolumeState(clamped);
-    if (audioRef.current) audioRef.current.volume = clamped;
+    setIsMuted(false);
+    if (audioRef.current) {
+      audioRef.current.volume = clamped;
+      audioRef.current.muted = false;
+    }
   };
 
   const seekTo = (sec: number) => {
@@ -234,12 +339,13 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const toggleMute = () => setIsMuted((muted) => !muted);
   const toggleShuffle = () => setShuffle((prev) => !prev);
   const toggleLoop = () => setLoop((prev) => !prev);
 
   return (
     <RadioContext.Provider value={{
-      tracks, setTracks, currentTrack, isPlaying, volume, progress, duration,
+      tracks, setTracks, currentTrack, isPlaying, volume, isMuted, toggleMute, progress, duration,
       audioError, favorites, playTrack, togglePlay, nextTrack, prevTrack, setVolume,
       seekTo, toggleFavorite, shuffle, toggleShuffle, loop, toggleLoop, isLoaded,
       myRequests, setMyRequests, myPlaylist, setMyPlaylist,

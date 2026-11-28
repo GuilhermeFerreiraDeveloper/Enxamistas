@@ -3,6 +3,8 @@ import { Inter } from 'next/font/google'
 import '@/styles/globals.css'
 import { cn } from '@/lib/utils'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { RadioProvider } from '@/contexts/RadioContext'
+import { GlobalRadioShell } from '@/components/GlobalRadioShell'
 import { ToastProvider } from '@/contexts/ToastContext'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -22,7 +24,9 @@ export default function RootLayout({
       <body className={cn(inter.className, "bg-background text-foreground antialiased")}>
         <ToastProvider>
           <AuthProvider>
-            {children}
+            <RadioProvider>
+              <GlobalRadioShell>{children}</GlobalRadioShell>
+            </RadioProvider>
           </AuthProvider>
         </ToastProvider>
       </body>

@@ -21,6 +21,10 @@ export function Navbar() {
     { name: 'Projetos', href: '/projetos' },
     { name: 'Livro de Visitas', href: '/livro-de-visitas' },
   ];
+  const primaryNavLinks = navLinks.filter((link) =>
+    ['Início', 'História & Regras', 'Comunidade', 'Cursos'].includes(link.name)
+  );
+  const secondaryNavLinks = navLinks.filter((link) => !primaryNavLinks.includes(link));
 
   return (
     <nav className="sticky top-0 w-full z-50 bg-obsidian/90 backdrop-blur-md border-b border-royal-gold/15">
@@ -44,16 +48,32 @@ export function Navbar() {
             </div>
           </Link>
 
-          <div className="hidden lg:flex items-center gap-6">
-            {navLinks.map((link) => (
+          <div className="hidden xl:flex min-w-0 items-center gap-3 2xl:gap-4">
+            {primaryNavLinks.map((link) => (
               <Link
                 key={link.name}
                 href={link.href}
-                className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/65 hover:text-royal-gold transition-colors whitespace-nowrap"
+                className="whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.12em] text-white/65 transition-colors hover:text-royal-gold 2xl:text-[10px] 2xl:tracking-[0.16em]"
               >
                 {link.name}
               </Link>
             ))}
+            <details className="group relative">
+              <summary className="cursor-pointer list-none whitespace-nowrap px-2 py-2 text-[9px] font-bold uppercase tracking-[0.12em] text-white/65 transition-colors hover:text-royal-gold 2xl:text-[10px]">
+                Explorar
+              </summary>
+              <div className="absolute right-0 top-full z-50 mt-2 min-w-52 rounded-sm border border-royal-gold/20 bg-graphite p-2 shadow-xl">
+                {secondaryNavLinks.map((link) => (
+                  <Link
+                    key={link.name}
+                    href={link.href}
+                    className="block rounded-sm px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-white/65 transition-colors hover:bg-white/5 hover:text-royal-gold"
+                  >
+                    {link.name}
+                  </Link>
+                ))}
+              </div>
+            </details>
             {user ? (
               <Link href="/dashboard" className="btn-primary whitespace-nowrap">
                 Colmeia
@@ -76,7 +96,7 @@ export function Navbar() {
           <button
             type="button"
             onClick={() => setIsOpen(!isOpen)}
-            className="lg:hidden text-white/70 hover:text-royal-gold p-2"
+            className="p-2 text-white/70 hover:text-royal-gold xl:hidden"
             aria-label="Alternar menu"
           >
             {isOpen ? <X size={24} /> : <Menu size={24} />}
@@ -84,7 +104,7 @@ export function Navbar() {
         </div>
       </div>
 
-      <div className={cn('lg:hidden bg-graphite border-b border-royal-gold/15', isOpen ? 'block' : 'hidden')}>
+      <div className={cn('xl:hidden border-b border-royal-gold/15 bg-graphite', isOpen ? 'block' : 'hidden')}>
         <div className="px-4 py-4 space-y-2">
           {navLinks.map((link) => (
             <Link

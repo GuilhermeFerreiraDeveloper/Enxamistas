@@ -11,11 +11,30 @@
   --ivory: #F0EEE8;
 }
 
+html {
+  min-width: 320px;
+  scroll-behavior: smooth;
+}
+
 body {
   color: var(--ivory);
   background-color: var(--obsidian);
   min-height: 100vh;
+  min-width: 320px;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+:focus-visible {
+  outline: 2px solid var(--royal-gold);
+  outline-offset: 3px;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
 }
 
 @layer components {
