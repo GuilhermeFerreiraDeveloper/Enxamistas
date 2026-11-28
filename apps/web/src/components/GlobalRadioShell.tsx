@@ -12,6 +12,9 @@ export function GlobalRadioShell({ children }: { children: React.ReactNode }) {
         <span className="pollen-dot pollen-two" />
         <span className="pollen-dot pollen-three" />
         <span className="pollen-dot pollen-four" />
+        <span className="hive-hex hive-hex-one" />
+        <span className="hive-hex hive-hex-two" />
+        <span className="hive-hex hive-hex-three" />
       </div>
       <div className="relative z-10 pb-28 sm:pb-24">{children}</div>
       <MascotCompanion />

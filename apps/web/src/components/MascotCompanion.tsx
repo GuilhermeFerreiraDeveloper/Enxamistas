@@ -79,7 +79,7 @@ export function MascotCompanion() {
 
   return (
     <aside className="pointer-events-none fixed bottom-[5.75rem] right-3 z-30 flex max-w-[min(19rem,calc(100vw-1.5rem))] items-end gap-2 sm:bottom-24 sm:right-6" aria-label="Mascote da colmeia">
-      <div className="pointer-events-auto relative mb-2 min-w-0 flex-1 rounded-2xl rounded-br-sm border border-royal-gold/25 bg-[#201f22]/95 px-3.5 py-3 shadow-2xl shadow-black/40 backdrop-blur-xl sm:px-4">
+      <div className="mascot-speech pointer-events-auto relative mb-2 min-w-0 flex-1 border border-royal-gold/30 bg-[#201f22]/95 px-3.5 py-3 shadow-2xl shadow-black/40 backdrop-blur-xl sm:px-4">
         <p className="text-[11px] font-medium leading-relaxed text-white/90 sm:text-xs" aria-live="polite">
           {MASCOT_LINES[lineIndex]}
         </p>

@@ -37,7 +37,7 @@ export function RadioBar() {
   const playbackUnavailable = !currentTrack && tracks.length === 0;
 
   return (
-    <div data-radio-controls className="fixed inset-x-2 bottom-2 z-40 rounded-2xl border border-white/10 bg-[#1b1b1e]/90 px-3 py-2.5 shadow-2xl shadow-black/50 backdrop-blur-2xl sm:inset-x-5 sm:bottom-4 sm:px-5 lg:inset-x-1/2 lg:w-[min(100%-2.5rem,80rem)] lg:-translate-x-1/2">
+    <div data-radio-controls className="hive-radio-dock fixed inset-x-2 bottom-2 z-40 rounded-2xl border border-white/10 bg-[#1b1b1e]/90 px-3 py-2.5 shadow-2xl shadow-black/50 backdrop-blur-2xl sm:inset-x-5 sm:bottom-4 sm:px-5 lg:inset-x-1/2 lg:w-[min(100%-2.5rem,80rem)] lg:-translate-x-1/2">
       <div className="mx-auto grid max-w-7xl min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 md:grid-cols-[minmax(180px,1fr)_auto_minmax(220px,1fr)]">
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-royal-gold/25 bg-gradient-to-br from-royal-gold/15 to-orchid/10">
