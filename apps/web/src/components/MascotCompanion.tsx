@@ -106,11 +106,11 @@ export function MascotCompanion() {
       <button
         type="button"
         onClick={() => setLineIndex((current) => pickDifferentLine(current))}
-        className="pointer-events-auto mb-0.5 grid h-[4.25rem] w-[4.25rem] shrink-0 place-items-center overflow-hidden rounded-[1.4rem] border border-royal-gold/30 bg-gradient-to-br from-royal-gold/15 to-orchid/15 p-1 shadow-xl transition duration-300 hover:-translate-y-1 hover:rotate-2 hover:border-royal-gold/60 sm:h-[4.75rem] sm:w-[4.75rem]"
+        className="pointer-events-auto mb-0.5 grid h-[4.5rem] w-[4.5rem] shrink-0 place-items-center bg-transparent transition duration-300 hover:-translate-y-1 hover:rotate-2 sm:h-20 sm:w-20"
         aria-label="Trocar frase do mascote"
         title="Clique para ouvir outra frase"
       >
-        <img src="/mascote.png" alt="Mascote Enxamista" className="h-full w-full object-contain" />
+        <img src="/mascote.png" alt="Mascote Enxamista" className="h-full w-full object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.45)]" />
       </button>
     </aside>
   );
