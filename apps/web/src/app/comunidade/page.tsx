@@ -82,7 +82,7 @@ export default function CommunityDirectoryPage() {
               </label>
               <select value={role} onChange={(event) => { setRole(event.target.value); setPage(1); }} className="rounded-sm border border-white/10 bg-graphite px-4 py-3 text-sm text-white outline-none focus:border-royal-gold/50">
                 <option value="">Todos os cargos</option>
-                {Object.values(UserRole).map((item) => <option key={item} value={item}>{RoleLabels[item]}</option>)}
+                {Object.values(UserRole).filter((item) => item !== UserRole.STAFF_ZANGAO).map((item) => <option key={item} value={item}>{RoleLabels[item]}</option>)}
               </select>
             </div>
           </div>
@@ -98,30 +98,44 @@ export default function CommunityDirectoryPage() {
           ) : members.length === 0 ? (
             <div className="border border-dashed border-royal-gold/25 bg-graphite/40 px-6 py-16 text-center text-sm text-white/50">Nenhum membro encontrado para essa busca.</div>
           ) : (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {members.map((member) => (
-                <Link key={member.id} href={`/comunidade/${member.id}`} className="group relative overflow-hidden border border-white/10 bg-graphite/90 p-6 transition hover:-translate-y-1 hover:border-royal-gold/35 hover:shadow-gold-glow">
-                  <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-royal-gold/[0.08] to-transparent" />
-                  <div className="relative flex items-center gap-4">
-                    <div className="h-20 w-20 shrink-0 bg-[linear-gradient(135deg,#e6a82e_0%,#111112_32%,#f0eee8_52%,#111112_70%,#c49a48_100%)] p-[3px] hex-badge shadow-gold-glow">
-                      <div className="h-full w-full overflow-hidden bg-obsidian hex-badge">
-                        {member.avatar ? <img src={resolveMediaUrl(member.avatar)} alt={member.name} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center"><User size={28} className="text-royal-gold/65" /></div>}
-                      </div>
+            <div className="space-y-10">
+              {Object.values(UserRole).filter((groupRole) => groupRole !== UserRole.STAFF_ZANGAO).map((groupRole) => {
+                const groupMembers = members.filter((member) => member.role === groupRole);
+                if (groupMembers.length === 0) return null;
+                return (
+                  <section key={groupRole} className="space-y-4">
+                    <header className="flex items-center justify-between border-b border-royal-gold/20 pb-3">
+                      <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-royal-gold">{RoleLabels[groupRole]}</h2>
+                      <span className="text-[10px] uppercase tracking-widest text-white/40">{groupMembers.length} {groupMembers.length === 1 ? 'membro' : 'membros'} nesta página</span>
+                    </header>
+                    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {groupMembers.map((member) => (
+                        <Link key={member.id} href={`/comunidade/${member.id}`} className="group relative overflow-hidden border border-white/10 bg-graphite/90 p-6 transition hover:-translate-y-1 hover:border-royal-gold/35 hover:shadow-gold-glow">
+                          <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-royal-gold/[0.08] to-transparent" />
+                          <div className="relative flex items-center gap-4">
+                            <div className="h-20 w-20 shrink-0 bg-[linear-gradient(135deg,#e6a82e_0%,#111112_32%,#f0eee8_52%,#111112_70%,#c49a48_100%)] p-[3px] hex-badge shadow-gold-glow">
+                              <div className="h-full w-full overflow-hidden bg-obsidian hex-badge">
+                                {member.avatar ? <img src={resolveMediaUrl(member.avatar)} alt={member.name} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center"><User size={28} className="text-royal-gold/65" /></div>}
+                              </div>
+                            </div>
+                            <div className="min-w-0">
+                              <h3 className="truncate text-lg font-bold text-white group-hover:text-royal-gold">{member.nickname || member.name}</h3>
+                              {member.nickname && <p className="truncate text-xs text-white/45">{member.name}</p>}
+                              <div className="mt-2"><RoleBadge role={member.role} /></div>
+                            </div>
+                          </div>
+                          <div className="relative mt-5 border-t border-white/5 pt-4">
+                            <p className="min-h-10 text-xs leading-5 text-white/55 line-clamp-2">{member.bio || 'Uma nova história na Colmeia.'}</p>
+                            <p className="mt-4 flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-widest text-royal-gold/80">
+                              <span className="truncate">{member.mainCourse?.name || 'Área de formação não informada'}</span><ArrowRight size={13} className="shrink-0 transition group-hover:translate-x-1" />
+                            </p>
+                          </div>
+                        </Link>
+                      ))}
                     </div>
-                    <div className="min-w-0">
-                      <h2 className="truncate text-lg font-bold text-white group-hover:text-royal-gold">{member.nickname || member.name}</h2>
-                      {member.nickname && <p className="truncate text-xs text-white/45">{member.name}</p>}
-                      <div className="mt-2"><RoleBadge role={member.role} /></div>
-                    </div>
-                  </div>
-                  <div className="relative mt-5 border-t border-white/5 pt-4">
-                    <p className="min-h-10 text-xs leading-5 text-white/55 line-clamp-2">{member.bio || 'Uma nova história na Colmeia.'}</p>
-                    <p className="mt-4 flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-widest text-royal-gold/80">
-                      <span className="truncate">{member.mainCourse?.name || 'Área de formação não informada'}</span><ArrowRight size={13} className="shrink-0 transition group-hover:translate-x-1" />
-                    </p>
-                  </div>
-                </Link>
-              ))}
+                  </section>
+                );
+              })}
             </div>
           )}
 

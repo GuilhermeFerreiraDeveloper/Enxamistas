@@ -31,6 +31,12 @@ export default function AdminPage() {
   const [tab, setTab] = useState<AdminTab>('METRICS');
   const [metrics, setMetrics] = useState<any>(null);
   const [members, setMembers] = useState<any[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [editingMember, setEditingMember] = useState<any | null>(null);
+  const [memberForm, setMemberForm] = useState<Record<string, string>>({});
+  const [completionCourseId, setCompletionCourseId] = useState('');
+  const [completionNotes, setCompletionNotes] = useState('');
+  const [mainCourseId, setMainCourseId] = useState('');
   const [memberQuery, setMemberQuery] = useState('');
   const [rbac, setRbac] = useState<{ roles: any[]; permissions: any[] }>({ roles: [], permissions: [] });
   const [reports, setReports] = useState<any[]>([]);
@@ -56,8 +62,12 @@ export default function AdminPage() {
         const res = await api.get('/admin/metrics');
         setMetrics(res.data);
       } else if (activeTab === 'MEMBERS') {
-        const res = await api.get('/admin/members', { params: memberQuery ? { q: memberQuery } : {} });
-        setMembers(Array.isArray(res.data) ? res.data : []);
+        const [membersRes, coursesRes] = await Promise.all([
+          api.get('/admin/members', { params: memberQuery ? { q: memberQuery } : {} }),
+          api.get('/courses'),
+        ]);
+        setMembers(Array.isArray(membersRes.data) ? membersRes.data : []);
+        setCourses(Array.isArray(coursesRes.data) ? coursesRes.data : []);
       } else if (activeTab === 'RBAC') {
         const res = await api.get('/admin/roles');
         setRbac(res.data || { roles: [], permissions: [] });
@@ -129,6 +139,78 @@ export default function AdminPage() {
       showToast(!current ? 'Usuário suspenso.' : 'Usuário reativado.', 'info');
     } catch (err: any) {
       showToast(err.response?.data?.error || 'Erro ao alterar suspensão.', 'error');
+    }
+  };
+
+  const openMemberEditor = (member: any) => {
+    setEditingMember(member);
+    setMainCourseId(member.profile?.mainCourseId || '');
+    setMemberForm({
+      name: member.profile?.name || '',
+      passport: member.passport || '',
+      joinDate: member.profile?.joinDate ? new Date(member.profile.joinDate).toISOString().slice(0, 10) : '',
+      avatar: member.profile?.avatar || '',
+      banner: member.profile?.banner || '',
+      nickname: member.profile?.nickname || '',
+      age: member.profile?.age == null ? '' : String(member.profile.age),
+      zodiac: member.profile?.zodiac || '',
+      bio: member.profile?.bio || '',
+      description: member.profile?.description || '',
+      favoriteMusic: member.profile?.favoriteMusic || '',
+      favoriteFilm: member.profile?.favoriteFilm || '',
+      personalQuote: member.profile?.personalQuote || '',
+      socialLinks: member.profile?.socialLinks || '',
+      formationArea: member.profile?.formationArea || '',
+      honors: member.profile?.honors || '',
+      musicGenre: member.profile?.musicGenre || '',
+      interests: member.profile?.interests || '',
+      projects: member.profile?.projects || '',
+    });
+  };
+
+  const handleSaveMember = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!editingMember) return;
+    try {
+      await api.put(`/admin/members/${editingMember.id}`, {
+        ...memberForm,
+        age: memberForm.age ? Number(memberForm.age) : null,
+        joinDate: memberForm.joinDate || undefined,
+      });
+      await loadTab('MEMBERS');
+      setEditingMember(null);
+      showToast('Dados do membro atualizados e registrados na auditoria.', 'success');
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Erro ao atualizar dados do membro.', 'error');
+    }
+  };
+
+  const handleChangeMainCourse = async () => {
+    if (!editingMember?.profile?.id || !mainCourseId) return;
+    try {
+      await api.put(`/admin/profiles/${editingMember.profile.id}/main-course`, { courseId: mainCourseId });
+      await loadTab('MEMBERS');
+      setEditingMember(null);
+      showToast('Curso principal atualizado.', 'success');
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Erro ao alterar o curso principal.', 'error');
+    }
+  };
+
+  const handleCompleteMemberCourse = async () => {
+    if (!editingMember?.profile?.id || !completionCourseId) return;
+    try {
+      await api.put(`/admin/profiles/${editingMember.profile.id}/courses/${completionCourseId}/complete`, {
+        notes: completionNotes || undefined,
+        emitMedal: true,
+      });
+      await loadTab('MEMBERS');
+      setEditingMember(null);
+      setCompletionCourseId('');
+      setCompletionNotes('');
+      showToast('Curso concluído e auditado; medalha emitida quando disponível.', 'success');
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Erro ao concluir curso para o membro.', 'error');
     }
   };
 
@@ -379,6 +461,9 @@ export default function AdminPage() {
                       </option>
                     ))}
                   </select>
+                  <Button size="sm" variant="outline" onClick={() => openMemberEditor(m)}>
+                    Gerenciar membro
+                  </Button>
                   {m.id !== user?.id && (
                     <Button
                       size="sm"
@@ -392,6 +477,78 @@ export default function AdminPage() {
               </div>
             ))}
           </div>
+
+          {editingMember && (
+            <section className="space-y-6 border border-royal-gold/25 bg-graphite p-6 sm:p-8">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-bold uppercase tracking-widest text-royal-gold">Gerenciar membro</h2>
+                  <p className="mt-1 text-xs text-white/50">{editingMember.profile?.name} • passaporte #{editingMember.passport}</p>
+                </div>
+                <Button type="button" variant="ghost" onClick={() => setEditingMember(null)}>Fechar</Button>
+              </div>
+
+              <form onSubmit={handleSaveMember} className="space-y-5">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-white">Conta e perfil público</h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {[['name', 'Nome'], ['passport', 'Passaporte'], ['nickname', 'Apelido'], ['age', 'Idade'], ['zodiac', 'Signo'], ['joinDate', 'Data de ingresso'], ['avatar', 'URL do avatar'], ['banner', 'URL da capa'], ['formationArea', 'Área de formação'], ['favoriteMusic', 'Música favorita'], ['favoriteFilm', 'Filme ou série favorito'], ['musicGenre', 'Gênero musical']].map(([key, label]) => (
+                    <label key={key} className="space-y-1 text-[10px] font-bold uppercase tracking-widest text-white/50">
+                      {label}
+                      <input value={memberForm[key] || ''} type={key === 'age' ? 'number' : key === 'joinDate' ? 'date' : 'text'} onChange={(event) => setMemberForm((form) => ({ ...form, [key]: event.target.value }))} className="w-full rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm normal-case tracking-normal text-white" />
+                    </label>
+                  ))}
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {[
+                    ['bio', 'Biografia'], ['description', 'Descrição'], ['personalQuote', 'Frase pessoal'],
+                    ['socialLinks', 'Links sociais (um por linha)'], ['honors', 'Títulos e destaques'],
+                    ['interests', 'Interesses'], ['projects', 'Projetos'],
+                  ].map(([key, label]) => (
+                    <label key={key} className="space-y-1 text-[10px] font-bold uppercase tracking-widest text-white/50">
+                      {label}
+                      <textarea rows={key === 'description' || key === 'socialLinks' ? 4 : 3} value={memberForm[key] || ''} onChange={(event) => setMemberForm((form) => ({ ...form, [key]: event.target.value }))} className="w-full rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm normal-case tracking-normal text-white" />
+                    </label>
+                  ))}
+                </div>
+                <Button type="submit">Salvar informações</Button>
+              </form>
+
+              <div className="space-y-4 border-t border-white/10 pt-5">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-white">Formação e conclusão de cursos</h3>
+                <div className="flex flex-wrap gap-3">
+                  <select value={mainCourseId} onChange={(event) => setMainCourseId(event.target.value)} className="min-w-60 flex-1 rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm text-white">
+                    <option value="">Definir curso principal</option>
+                    {courses.map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
+                  </select>
+                  <Button type="button" variant="outline" disabled={!mainCourseId || mainCourseId === editingMember.profile?.mainCourseId} onClick={handleChangeMainCourse}>Alterar curso principal</Button>
+                </div>
+                <p className="text-xs text-white/50">Curso principal atual: {editingMember.profile?.mainCourse?.name || 'não definido'}</p>
+                <div className="flex flex-wrap gap-3">
+                  <select value={completionCourseId} onChange={(event) => setCompletionCourseId(event.target.value)} className="min-w-60 flex-1 rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm text-white">
+                    <option value="">Selecione um curso para concluir</option>
+                    {courses.map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
+                  </select>
+                  <input value={completionNotes} onChange={(event) => setCompletionNotes(event.target.value)} placeholder="Observação da administração (opcional)" className="min-w-60 flex-1 rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm text-white" />
+                  <Button type="button" disabled={!completionCourseId} onClick={handleCompleteMemberCourse}>Concluir curso</Button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(editingMember.profile?.courseCompletions || []).map((completion: any) => (
+                    <span key={completion.id} className="border border-royal-gold/20 px-3 py-2 text-xs text-white/70">{completion.course.name} · {completion.status}</span>
+                  ))}
+                  {!(editingMember.profile?.courseCompletions || []).length && <span className="text-xs text-white/40">Nenhum curso concluído registrado.</span>}
+                </div>
+                <div className="space-y-2 border-t border-white/5 pt-4">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/45">Matrículas atuais</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(editingMember.profile?.enrollments || []).map((enrollment: any) => (
+                      <span key={enrollment.id} className="border border-white/10 px-3 py-2 text-xs text-white/60">{enrollment.course.name} · {enrollment.type} · {enrollment.status}</span>
+                    ))}
+                    {!(editingMember.profile?.enrollments || []).length && <span className="text-xs text-white/40">Nenhuma matrícula registrada.</span>}
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
         </div>
       )}
 

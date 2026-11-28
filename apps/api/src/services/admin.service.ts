@@ -1,5 +1,12 @@
 import { prisma } from '../lib/prisma';
-import { RoleHierarchy, UserRole, roleChangeSchema, suspendUserSchema } from '@enxamistas/shared';
+import {
+  RoleHierarchy,
+  UserRole,
+  adminCourseCompletionSchema,
+  adminMemberUpdateSchema,
+  roleChangeSchema,
+  suspendUserSchema,
+} from '@enxamistas/shared';
 import { AppError } from '../errors/AppError';
 import { AuditService } from './audit.service';
 import { NotificationService } from './notification.service';
@@ -103,6 +110,14 @@ export class AdminService {
         profile: {
           include: {
             mainCourse: { select: { id: true, name: true } },
+            enrollments: {
+              include: { course: { select: { id: true, name: true } } },
+              orderBy: { createdAt: 'desc' },
+            },
+            courseCompletions: {
+              include: { course: { select: { id: true, name: true } } },
+              orderBy: { completedAt: 'desc' },
+            },
             _count: { select: { medals: true, courseCompletions: true, achievements: true } },
           },
         },
@@ -110,6 +125,45 @@ export class AdminService {
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
+  }
+
+  async updateMember(targetUserId: string, rawData: any, actorUserId: string) {
+    const data = adminMemberUpdateSchema.parse(rawData);
+    const { name, passport, ...profileData } = data;
+    const target = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      include: { profile: true },
+    });
+    if (!target?.profile) throw new AppError('Membro ou perfil não encontrado.', 404, 'MEMBER_NOT_FOUND');
+
+    const normalizedProfileData = Object.fromEntries(
+      Object.entries(profileData).map(([key, value]) => [key, value === '' ? null : value])
+    );
+    if (name !== undefined) normalizedProfileData.name = name;
+    const updated = await prisma.$transaction(async (tx) => {
+      if (passport !== undefined) {
+        await tx.user.update({ where: { id: targetUserId }, data: { passport } });
+      }
+      if (Object.keys(normalizedProfileData).length > 0) {
+        await tx.profile.update({ where: { id: target.profile!.id }, data: normalizedProfileData });
+      }
+      return tx.user.findUnique({
+        where: { id: targetUserId },
+        select: {
+          id: true,
+          passport: true,
+          role: true,
+          isSuspended: true,
+          profile: { include: { mainCourse: { select: { id: true, name: true } } } },
+        },
+      });
+    });
+
+    await AuditService.log(actorUserId, 'ADMIN_EDIT_MEMBER', 'User', {
+      targetUserId,
+      fields: Object.keys(data),
+    });
+    return updated;
   }
 
   async changeUserRole(
@@ -243,6 +297,72 @@ export class AdminService {
     });
 
     return updated;
+  }
+
+  async completeMemberCourse(
+    targetProfileId: string,
+    courseId: string,
+    rawData: any,
+    actorUserId: string,
+    actorProfileId: string | undefined
+  ) {
+    const { notes, emitMedal } = adminCourseCompletionSchema.parse(rawData);
+    const [profile, course] = await Promise.all([
+      prisma.profile.findUnique({ where: { id: targetProfileId }, select: { id: true, name: true, mainCourseId: true } }),
+      prisma.course.findUnique({ where: { id: courseId }, include: { medal: true } }),
+    ]);
+    if (!profile) throw new AppError('Membro não encontrado.', 404, 'MEMBER_NOT_FOUND');
+    if (!course) throw new AppError('Curso não encontrado.', 404, 'COURSE_NOT_FOUND');
+
+    const completion = await prisma.$transaction(async (tx) => {
+      await tx.courseEnrollment.upsert({
+        where: { courseId_profileId: { courseId, profileId: targetProfileId } },
+        update: { status: 'COMPLETED' },
+        create: {
+          courseId,
+          profileId: targetProfileId,
+          type: profile.mainCourseId === courseId ? 'MAIN' : 'SECONDARY',
+          status: 'COMPLETED',
+        },
+      });
+      const completed = await tx.courseCompletion.upsert({
+        where: { courseId_profileId: { courseId, profileId: targetProfileId } },
+        update: { status: 'APPROVED', notes: notes || 'Conclusão registrada pela administração.', validatedById: actorProfileId || null, completedAt: new Date() },
+        create: {
+          courseId,
+          profileId: targetProfileId,
+          status: 'APPROVED',
+          notes: notes || 'Conclusão registrada pela administração.',
+          validatedById: actorProfileId || null,
+        },
+      });
+      if (emitMedal && course.medal) {
+        await tx.userMedal.upsert({
+          where: { medalId_profileId: { medalId: course.medal.id, profileId: targetProfileId } },
+          update: {},
+          create: {
+            medalId: course.medal.id,
+            profileId: targetProfileId,
+            emittedById: actorProfileId || null,
+            reason: notes || `Conclusão oficial do curso ${course.name}`,
+          },
+        });
+      }
+      return completed;
+    });
+
+    await AuditService.log(actorUserId, 'ADMIN_COMPLETE_MEMBER_COURSE', 'CourseCompletion', {
+      courseId,
+      targetProfileId,
+      emitMedal,
+    });
+    await notificationService.createNotification(targetProfileId, {
+      title: `Conclusão oficial: ${course.name}`,
+      content: `A administração registrou sua conclusão em ${course.name}.`,
+      link: '/medalhas',
+      type: 'ACADEMIC',
+    });
+    return completion;
   }
 
   // --- EXTENSIBLE RBAC ---

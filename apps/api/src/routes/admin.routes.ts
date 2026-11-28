@@ -11,6 +11,7 @@ router.use(authMiddleware, permissionMiddleware('admin.access', UserRole.ABELHA_
 
 router.get('/metrics', controller.metrics);
 router.get('/members', controller.listMembers);
+router.put('/members/:userId', controller.updateMember);
 router.put(
   '/members/:userId/role',
   permissionMiddleware('roles.manage', UserRole.ABELHA_PRINCESA),
@@ -25,6 +26,11 @@ router.put(
   '/profiles/:profileId/main-course',
   permissionMiddleware('academic.manage', UserRole.ABELHA_PRINCESA),
   controller.changeMainCourse
+);
+router.put(
+  '/profiles/:profileId/courses/:courseId/complete',
+  permissionMiddleware('academic.manage', UserRole.ABELHA_PRINCESA),
+  controller.completeMemberCourse
 );
 
 router.get('/roles', controller.getRoles);

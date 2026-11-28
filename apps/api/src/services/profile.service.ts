@@ -3,7 +3,7 @@ import { UpdateProfileInput } from '@enxamistas/shared';
 import { AppError } from '../errors/AppError';
 import { AuditService } from './audit.service';
 import { env } from '../config/env';
-import { UserRole } from '@enxamistas/shared';
+import { RoleHierarchy, UserRole } from '@enxamistas/shared';
 
 export class ProfileService {
   private getPublicImagePath(imageUrl: string | null) {
@@ -27,6 +27,10 @@ export class ProfileService {
     return imageUrl;
   }
 
+  private toPublicRole(role: UserRole): UserRole {
+    return role === UserRole.STAFF_ZANGAO ? UserRole.ABELHA_OPERARIA : role;
+  }
+
   private toPublicMember(profile: any) {
     return {
       id: profile.id,
@@ -47,7 +51,7 @@ export class ProfileService {
       musicGenre: profile.musicGenre,
       interests: profile.interests,
       joinDate: profile.joinDate,
-      role: profile.user.role,
+      role: this.toPublicRole(profile.user.role as UserRole),
       mainCourse: profile.mainCourse,
       medals: profile.medals?.map((award: any) => ({
         id: award.id,
@@ -61,8 +65,17 @@ export class ProfileService {
     const page = Math.max(1, parseInt(String(filters.page || '1'), 10) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(String(filters.limit || '24'), 10) || 24));
     const query = typeof filters.q === 'string' ? filters.q.trim().slice(0, 100) : '';
-    const role = Object.values(UserRole).includes(filters.role) ? filters.role : undefined;
-    const where: any = { user: { isSuspended: false, role } };
+    const requestedRole = Object.values(UserRole).includes(filters.role) ? filters.role as UserRole : undefined;
+    const role = requestedRole === UserRole.STAFF_ZANGAO ? UserRole.ABELHA_OPERARIA : requestedRole;
+    const publicRoles = Object.values(UserRole)
+      .filter((item) => item !== UserRole.STAFF_ZANGAO)
+      .sort((a, b) => RoleHierarchy[b] - RoleHierarchy[a]);
+    const roleGroups: UserRole[][] = role
+      ? [role === UserRole.ABELHA_OPERARIA ? [UserRole.ABELHA_OPERARIA, UserRole.STAFF_ZANGAO] : [role]]
+      : publicRoles.map((item) => item === UserRole.ABELHA_OPERARIA
+        ? [UserRole.ABELHA_OPERARIA, UserRole.STAFF_ZANGAO]
+        : [item]);
+    const where: any = {};
     if (query) {
       where.OR = [
         { name: { contains: query, mode: 'insensitive' } },
@@ -70,12 +83,29 @@ export class ProfileService {
         { mainCourse: { is: { name: { contains: query, mode: 'insensitive' } } } },
       ];
     }
-
-    const [profiles, total] = await prisma.$transaction([
-      prisma.profile.findMany({
-        where,
-        skip: (page - 1) * limit,
-        take: limit,
+    const whereForRoles = (roles: UserRole[]) => ({
+      ...where,
+      user: { isSuspended: false, role: { in: roles } },
+    });
+    const roleCounts = await prisma.$transaction(
+      roleGroups.map((roles) => prisma.profile.count({ where: whereForRoles(roles) }))
+    );
+    const total = roleCounts.reduce((sum, count) => sum + count, 0);
+    let offset = (page - 1) * limit;
+    let remaining = limit;
+    const profileQueries: any[] = [];
+    roleGroups.forEach((roles, index) => {
+      const count = roleCounts[index];
+      if (remaining === 0 || count === 0) return;
+      if (offset >= count) {
+        offset -= count;
+        return;
+      }
+      const take = Math.min(remaining, count - offset);
+      profileQueries.push(prisma.profile.findMany({
+        where: whereForRoles(roles),
+        skip: offset,
+        take,
         select: {
           id: true,
           name: true,
@@ -103,13 +133,15 @@ export class ProfileService {
             select: { id: true, medal: { select: { name: true, course: { select: { name: true } } } } },
           },
         },
-        orderBy: [{ user: { role: 'asc' } }, { name: 'asc' }],
-      }),
-      prisma.profile.count({ where }),
-    ]);
+        orderBy: { name: 'asc' },
+      }));
+      remaining -= take;
+      offset = 0;
+    });
+    const profiles = (await Promise.all(profileQueries)).flat();
 
     return {
-      items: profiles.map((profile) => this.toPublicMember(profile)),
+      items: profiles.map((profile: any) => this.toPublicMember(profile)),
       total,
       page,
       limit,

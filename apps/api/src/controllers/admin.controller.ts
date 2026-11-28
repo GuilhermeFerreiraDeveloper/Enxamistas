@@ -21,6 +21,28 @@ export class AdminController {
     }
   }
 
+  async updateMember(req: any, res: Response, next: NextFunction) {
+    try {
+      res.status(200).json(await adminService.updateMember(req.params.userId, req.body, req.user.id));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async completeMemberCourse(req: any, res: Response, next: NextFunction) {
+    try {
+      res.status(200).json(await adminService.completeMemberCourse(
+        req.params.profileId,
+        req.params.courseId,
+        req.body,
+        req.user.id,
+        req.user.profile?.id
+      ));
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async changeRole(req: any, res: Response, next: NextFunction) {
     try {
       res.status(200).json(

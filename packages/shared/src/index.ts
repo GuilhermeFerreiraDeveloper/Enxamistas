@@ -77,6 +77,17 @@ export const updateProfileSchema = z.object({
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 
+export const adminMemberUpdateSchema = updateProfileSchema.extend({
+  name: z.string().trim().min(3, 'Nome muito curto').max(80, 'Nome muito longo').optional(),
+  passport: z.string().trim().min(1, 'Passaporte obrigatório').max(32, 'Passaporte inválido').optional(),
+  joinDate: z.coerce.date().optional(),
+});
+
+export const adminCourseCompletionSchema = z.object({
+  notes: z.string().trim().max(500).optional(),
+  emitMedal: z.boolean().default(true),
+});
+
 // --- FEED ---
 export const postSchema = z.object({
   content: z.string().trim().min(1, 'Conteúdo não pode ser vazio').max(3000),

@@ -103,7 +103,8 @@ describe('Enxamistas Critical Suite', () => {
       mainCourse: { id: 'course-1', name: 'Communication' },
       medals: [],
     }];
-    prisma.profile.count = async () => 1;
+    prisma.profile.count = async ({ where }) =>
+      where.user.role.in.includes(shared.UserRole.ABELHA_OPERARIA) ? 1 : 0;
 
     try {
       const result = await profileService.getPublicMembers({ page: '1', limit: '24' });
@@ -116,6 +117,138 @@ describe('Enxamistas Critical Suite', () => {
       prisma.$transaction = originalTransaction;
       prisma.profile.findMany = originalFindMany;
       prisma.profile.count = originalCount;
+    }
+  });
+
+  it('Public directory shows Staff Zangão as an ordinary member in public rank order', async () => {
+    const profileService = new ProfileService();
+    const originalTransaction = prisma.$transaction;
+    const originalFindMany = prisma.profile.findMany;
+    const originalCount = prisma.profile.count;
+    const makeProfile = (id, name, role) => ({
+      id,
+      name,
+      avatar: null,
+      banner: null,
+      nickname: null,
+      age: null,
+      zodiac: null,
+      bio: null,
+      description: null,
+      favoriteMusic: null,
+      favoriteFilm: null,
+      personalQuote: null,
+      socialLinks: null,
+      formationArea: null,
+      honors: null,
+      musicGenre: null,
+      interests: null,
+      joinDate: new Date('2024-01-01T00:00:00.000Z'),
+      user: { role },
+      mainCourse: null,
+      medals: [],
+    });
+    prisma.$transaction = async (queries) => Promise.all(queries);
+    const profiles = [
+      makeProfile('operator', 'Zoe Operaria', shared.UserRole.ABELHA_OPERARIA),
+      makeProfile('staff', 'Zangao', shared.UserRole.STAFF_ZANGAO),
+      makeProfile('queen', 'Abelha Rainha', shared.UserRole.ABELHA_RAINHA),
+    ];
+    prisma.profile.findMany = async ({ where }) => profiles
+      .filter((profile) => where.user.role.in.includes(profile.user.role))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    prisma.profile.count = async ({ where }) => profiles
+      .filter((profile) => where.user.role.in.includes(profile.user.role)).length;
+
+    try {
+      const result = await profileService.getPublicMembers({ page: '1', limit: '24' });
+      assert.deepEqual(result.items.map((profile) => profile.id), ['queen', 'staff', 'operator']);
+      assert.deepEqual(result.items.map((profile) => profile.role), [
+        shared.UserRole.ABELHA_RAINHA,
+        shared.UserRole.ABELHA_OPERARIA,
+        shared.UserRole.ABELHA_OPERARIA,
+      ]);
+      assert.equal(JSON.stringify(result.items).includes('STAFF_ZANGAO'), false);
+    } finally {
+      prisma.$transaction = originalTransaction;
+      prisma.profile.findMany = originalFindMany;
+      prisma.profile.count = originalCount;
+    }
+  });
+
+  it('Admin can edit member identity and profile fields with an audit record', async () => {
+    const originals = {
+      transaction: prisma.$transaction,
+      findUser: prisma.user.findUnique,
+      updateUser: prisma.user.update,
+      profileUpdate: prisma.profile.update,
+    };
+    let profileUpdate;
+    let userUpdate;
+    const member = {
+      id: 'member-user',
+      passport: '101',
+      profile: { id: 'member-profile', name: 'Old Name' },
+    };
+    prisma.$transaction = async (callback) => callback(prisma);
+    prisma.user.findUnique = async () => member;
+    prisma.user.update = async (args) => { userUpdate = args; return member; };
+    prisma.profile.update = async (args) => { profileUpdate = args; return args; };
+
+    try {
+      const result = await adminService.updateMember('member-user', {
+        name: 'New Member Name',
+        passport: '202',
+        bio: 'Updated by staff',
+        favoriteFilm: '',
+      }, 'staff-user');
+      assert.equal(result.id, 'member-user');
+      assert.equal(userUpdate.data.passport, '202');
+      assert.equal(profileUpdate.data.name, 'New Member Name');
+      assert.equal(profileUpdate.data.bio, 'Updated by staff');
+      assert.equal(profileUpdate.data.favoriteFilm, null);
+    } finally {
+      prisma.$transaction = originals.transaction;
+      prisma.user.findUnique = originals.findUser;
+      prisma.user.update = originals.updateUser;
+      prisma.profile.update = originals.profileUpdate;
+    }
+  });
+
+  it('Admin can complete a member course and grant its medal without attendance checks', async () => {
+    const originals = {
+      transaction: prisma.$transaction,
+      findProfile: prisma.profile.findUnique,
+      findCourse: prisma.course.findUnique,
+      enrollmentUpsert: prisma.courseEnrollment.upsert,
+      completionUpsert: prisma.courseCompletion.upsert,
+      medalUpsert: prisma.userMedal.upsert,
+    };
+    let enrollmentArgs;
+    let completionArgs;
+    let medalArgs;
+    prisma.$transaction = async (callback) => callback(prisma);
+    prisma.profile.findUnique = async () => ({ id: 'member-profile', name: 'Member', mainCourseId: null });
+    prisma.course.findUnique = async () => ({ id: 'course-1', name: 'Course', medal: { id: 'medal-1' } });
+    prisma.courseEnrollment.upsert = async (args) => { enrollmentArgs = args; return args; };
+    prisma.courseCompletion.upsert = async (args) => { completionArgs = args; return { id: 'completion-1', ...args.update }; };
+    prisma.userMedal.upsert = async (args) => { medalArgs = args; return args; };
+
+    try {
+      const result = await adminService.completeMemberCourse(
+        'member-profile', 'course-1', { notes: 'Approved by admin', emitMedal: true }, 'staff-user', 'staff-profile'
+      );
+      assert.equal(result.status, 'APPROVED');
+      assert.equal(enrollmentArgs.create.status, 'COMPLETED');
+      assert.equal(completionArgs.create.validatedById, 'staff-profile');
+      assert.equal(medalArgs.create.medalId, 'medal-1');
+    } finally {
+      prisma.$transaction = originals.transaction;
+      prisma.profile.findUnique = originals.findProfile;
+      prisma.course.findUnique = originals.findCourse;
+      prisma.courseEnrollment.upsert = originals.enrollmentUpsert;
+      prisma.courseCompletion.upsert = originals.completionUpsert;
+      prisma.userMedal.upsert = originals.medalUpsert;
     }
   });
 
