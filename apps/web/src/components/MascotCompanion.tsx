@@ -110,7 +110,7 @@ export function MascotCompanion() {
         aria-label="Trocar frase do mascote"
         title="Clique para ouvir outra frase"
       >
-        <img src="/mascote.png" alt="Mascote Enxamista" className="h-full w-full object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.45)]" />
+        <img src="/animado.gif" alt="Mascote Enxamista animado" className="h-full w-full object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.45)]" />
       </button>
     </aside>
   );
