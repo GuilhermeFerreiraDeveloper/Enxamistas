@@ -4,6 +4,7 @@ import { AppError } from '../errors/AppError';
 
 export type UploadScope =
   | 'avatars'
+  | 'profile'
   | 'feed'
   | 'events'
   | 'materials'
@@ -15,6 +16,7 @@ export type UploadScope =
 
 const ALLOWED_MIME_TYPES: Record<UploadScope, string[]> = {
   avatars: ['image/jpeg', 'image/png', 'image/webp'],
+  profile: ['image/jpeg', 'image/png', 'image/webp'],
   feed: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
   events: ['image/jpeg', 'image/png', 'image/webp'],
   materials: ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'],
@@ -27,6 +29,7 @@ const ALLOWED_MIME_TYPES: Record<UploadScope, string[]> = {
 
 const MAX_BYTES: Record<UploadScope, number> = {
   avatars: 3 * 1024 * 1024,
+  profile: 8 * 1024 * 1024,
   feed: 6 * 1024 * 1024,
   events: 6 * 1024 * 1024,
   materials: 10 * 1024 * 1024,
@@ -219,8 +222,8 @@ export class StorageService {
       key,
       url: isPrivate
         ? `/api/uploads/private/${encodeURIComponent(key)}`
-        : params.scope === 'gallery'
-          ? `uploads/gallery/${params.ownerId}/${id}.${ext}`
+        : ['gallery', 'avatars', 'profile'].includes(params.scope)
+          ? `uploads/${key}`
           : targetUrl,
       isPrivate,
     };

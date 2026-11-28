@@ -50,11 +50,26 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 
 // --- PROFILE ---
+const profileImageSchema = z.union([
+  z.string().url('URL de imagem inválida'),
+  z.string().regex(/^uploads\/(avatars|profile)\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp)$/i, 'Caminho de imagem inválido'),
+  z.literal(''),
+]);
+
 export const updateProfileSchema = z.object({
-  avatar: z.string().url('URL de avatar inválida').optional().or(z.literal('')),
+  avatar: profileImageSchema.optional(),
+  banner: profileImageSchema.optional(),
+  nickname: z.string().trim().max(40).optional(),
+  age: z.number().int().min(1).max(120).nullable().optional(),
+  zodiac: z.string().trim().max(30).optional(),
   bio: z.string().max(500).optional(),
   description: z.string().max(2000).optional(),
   favoriteMusic: z.string().max(150).optional(),
+  favoriteFilm: z.string().max(150).optional(),
+  personalQuote: z.string().max(250).optional(),
+  socialLinks: z.string().max(800).optional(),
+  formationArea: z.string().max(150).optional(),
+  honors: z.string().max(500).optional(),
   musicGenre: z.string().max(100).optional(),
   interests: z.string().max(500).optional(),
   projects: z.string().max(1000).optional(),

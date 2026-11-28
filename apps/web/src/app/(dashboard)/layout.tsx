@@ -30,6 +30,7 @@ import {
   ScrollText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { resolveMediaUrl } from '@/lib/media';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 
@@ -87,6 +88,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       items: [
         { name: 'Cinemática', href: '/cinematica', icon: Film },
         { name: 'Galeria da Colmeia', href: '/galeria', icon: Image },
+        { name: 'Comunidade Pública', href: '/comunidade', icon: Users },
         { name: 'História & Regras', href: '/lore', icon: ScrollText },
         { name: 'Membros', href: '/membros', icon: Users },
         { name: 'Meu Perfil', href: '/perfil', icon: UserCircle },
@@ -195,7 +197,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <div className="w-10 h-10 rounded-sm bg-obsidian border border-royal-gold/30 flex items-center justify-center overflow-hidden shrink-0">
                   {user.profile?.avatar ? (
                     <img
-                      src={user.profile.avatar}
+                      src={resolveMediaUrl(user.profile.avatar)}
                       alt={profileName}
                       className="w-full h-full object-cover"
                     />

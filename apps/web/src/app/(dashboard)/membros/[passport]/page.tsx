@@ -20,6 +20,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { Button } from '@/components/ui/Button';
 import { RoleBadge } from '@/components/ui/RoleBadge';
 import { formatDate } from '@/lib/utils';
+import { resolveMediaUrl } from '@/lib/media';
 
 export default function MemberProfilePage() {
   const params = useParams();
@@ -87,7 +88,7 @@ export default function MemberProfilePage() {
         <div className="flex items-center gap-6">
           <div className="w-24 h-24 rounded-sm bg-obsidian border border-royal-gold/30 flex items-center justify-center overflow-hidden shrink-0">
             {member.avatar ? (
-              <img src={member.avatar} alt={member.name} className="w-full h-full object-cover" />
+              <img src={resolveMediaUrl(member.avatar)} alt={member.name} className="w-full h-full object-cover" />
             ) : (
               <User size={36} className="text-royal-gold/40" />
             )}

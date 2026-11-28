@@ -23,6 +23,7 @@ import {
   CornerDownRight,
 } from 'lucide-react';
 import { formatDate, cn } from '@/lib/utils';
+import { resolveMediaUrl } from '@/lib/media';
 import { RoleHierarchy, UserRole } from '@enxamistas/shared';
 
 interface CommentNode {
@@ -234,7 +235,7 @@ export default function FeedPage() {
           <div className="flex gap-4">
             <div className="w-11 h-11 rounded-sm bg-obsidian border border-white/10 flex items-center justify-center shrink-0 overflow-hidden">
               {user?.profile?.avatar ? (
-                <img src={user.profile.avatar} alt={user.profile.name} className="w-full h-full object-cover" />
+                <img src={resolveMediaUrl(user.profile.avatar)} alt={user.profile.name} className="w-full h-full object-cover" />
               ) : (
                 <User size={20} className="text-royal-gold/50" />
               )}

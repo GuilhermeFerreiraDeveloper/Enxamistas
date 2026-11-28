@@ -25,6 +25,25 @@ export class ProfileController {
     }
   }
 
+  async getPublicMembers(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await profileService.getPublicMembers(req.query);
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getPublicMember(req: Request, res: Response, next: NextFunction) {
+    try {
+      const profile = await profileService.getPublicMember(req.params.profileId);
+      if (!profile) throw new AppError('Membro não encontrado ou indisponível.', 404, 'PROFILE_NOT_FOUND');
+      res.status(200).json(profile);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getMembers(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await profileService.getMembers(req.query);

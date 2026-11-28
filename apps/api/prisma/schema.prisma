@@ -84,9 +84,18 @@ model Profile {
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name          String
   avatar        String?
+  banner        String?
+  nickname      String?
+  age           Int?
+  zodiac        String?
   bio           String?
   description   String?
   favoriteMusic String?
+  favoriteFilm  String?
+  personalQuote String?
+  socialLinks   String?
+  formationArea String?
+  honors        String?
   musicGenre    String?
   interests     String?
   projects      String? // Legacy projects string

@@ -8,6 +8,7 @@ import { RoleHierarchy, UserRole } from '@enxamistas/shared';
 const router = Router();
 const VALID_SCOPES: UploadScope[] = [
   'avatars',
+  'profile',
   'feed',
   'events',
   'materials',
@@ -21,14 +22,14 @@ router.get('/status', authMiddleware, (_req, res) => {
   res.status(200).json(storageService.getStatus());
 });
 
-router.get('/gallery/:ownerId/:filename', async (req, res, next) => {
+router.get('/:scope(avatars|gallery|profile)/:ownerId/:filename', async (req, res, next) => {
   try {
-    const { ownerId, filename } = req.params;
+    const { scope, ownerId, filename } = req.params;
     if (!/^[0-9a-f-]{36}$/i.test(ownerId) || !/^[0-9a-f-]{36}\.(jpg|png|webp)$/i.test(filename)) {
       throw new AppError('Caminho de imagem inválido.', 400, 'INVALID_KEY');
     }
 
-    const file = await storageService.fetchPrivateObject(`gallery/${ownerId}/${filename}`);
+    const file = await storageService.fetchPrivateObject(`${scope}/${ownerId}/${filename}`);
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.contentType)) {
       throw new AppError('Tipo de imagem inválido no armazenamento.', 415, 'INVALID_FILE_TYPE');
     }

@@ -15,6 +15,7 @@ const { ChatService } = require('../dist/services/chat.service.js');
 const { StorageService } = require('../dist/services/storage.service.js');
 const { CinematicService, extractYoutubeId } = require('../dist/services/cinematic.service.js');
 const { InstitutionalService } = require('../dist/services/institutional.service.js');
+const { ProfileService } = require('../dist/services/profile.service.js');
 const { roleMiddleware } = require('../dist/middlewares/role.middleware.js');
 
 describe('Enxamistas Critical Suite', () => {
@@ -56,6 +57,66 @@ describe('Enxamistas Critical Suite', () => {
       mainCourseId: 'course-1',
     });
     assert.equal(valid.passport, '101');
+
+    const publicProfile = shared.updateProfileSchema.parse({
+      nickname: 'Abelha Neon',
+      age: 24,
+      zodiac: 'Leão',
+      banner: 'uploads/profile/123e4567-e89b-12d3-a456-426614174000/123e4567-e89b-12d3-a456-426614174001.webp',
+      favoriteFilm: 'Filme favorito',
+      personalQuote: 'Cooperação sempre.',
+      socialLinks: 'https://example.com/profile',
+      formationArea: 'Comunicação',
+      honors: 'Título da comunidade',
+    });
+    assert.equal(publicProfile.nickname, 'Abelha Neon');
+    assert.throws(() => shared.updateProfileSchema.parse({ age: 150 }));
+    assert.throws(() => shared.updateProfileSchema.parse({ banner: 'uploads/profile/other/image.png' }));
+  });
+
+  it('Public member directory exposes profile fields but not passport identifiers', async () => {
+    const profileService = new ProfileService();
+    const originalTransaction = prisma.$transaction;
+    const originalFindMany = prisma.profile.findMany;
+    const originalCount = prisma.profile.count;
+    prisma.$transaction = async (queries) => Promise.all(queries);
+    prisma.profile.findMany = async () => [{
+      id: 'profile-public-1',
+      name: 'Alex Member',
+      avatar: null,
+      banner: null,
+      nickname: 'Bee',
+      age: 25,
+      zodiac: 'Touro',
+      bio: 'A member bio',
+      description: null,
+      favoriteMusic: 'Jazz',
+      favoriteFilm: 'Film',
+      personalQuote: 'Together.',
+      socialLinks: null,
+      formationArea: 'Arts',
+      honors: null,
+      musicGenre: null,
+      interests: null,
+      joinDate: new Date('2024-01-01T00:00:00.000Z'),
+      user: { role: shared.UserRole.ABELHA_OPERARIA, passport: 'private-passport' },
+      mainCourse: { id: 'course-1', name: 'Communication' },
+      medals: [],
+    }];
+    prisma.profile.count = async () => 1;
+
+    try {
+      const result = await profileService.getPublicMembers({ page: '1', limit: '24' });
+      assert.equal(result.total, 1);
+      assert.equal(result.items[0].nickname, 'Bee');
+      assert.equal(result.items[0].role, shared.UserRole.ABELHA_OPERARIA);
+      assert.equal(Object.prototype.hasOwnProperty.call(result.items[0], 'passport'), false);
+      assert.equal(JSON.stringify(result.items).includes('private-passport'), false);
+    } finally {
+      prisma.$transaction = originalTransaction;
+      prisma.profile.findMany = originalFindMany;
+      prisma.profile.count = originalCount;
+    }
   });
 
   it('AuthService blocks duplicate passport and invalid mainCourseId', async () => {

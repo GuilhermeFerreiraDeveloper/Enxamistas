@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { RoleBadge } from '@/components/ui/RoleBadge';
 import { RoleHierarchy, UserRole } from '@enxamistas/shared';
+import { resolveMediaUrl } from '@/lib/media';
 
 export default function ReconhecimentoPage() {
   const { user } = useAuth();
@@ -106,7 +107,7 @@ export default function ReconhecimentoPage() {
               <div className="w-20 h-20 rounded-sm bg-obsidian border border-royal-gold/30 flex items-center justify-center overflow-hidden shrink-0">
                 {h.imageUrl || h.profile?.avatar ? (
                   <img
-                    src={h.imageUrl || h.profile.avatar}
+                    src={resolveMediaUrl(h.imageUrl || h.profile.avatar)}
                     alt={h.profile?.name}
                     className="w-full h-full object-cover"
                   />

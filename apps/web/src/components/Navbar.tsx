@@ -15,6 +15,7 @@ export function Navbar() {
     { name: 'História & Regras', href: '/lore' },
     { name: 'Cinemática', href: '/cinematica' },
     { name: 'Galeria', href: '/galeria' },
+    { name: 'Comunidade', href: '/comunidade' },
     { name: 'Cursos', href: '/catalogo' },
     { name: 'Mansões', href: '/mansoes' },
     { name: 'Projetos', href: '/projetos' },

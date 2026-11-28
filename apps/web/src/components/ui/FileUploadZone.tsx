@@ -6,7 +6,7 @@ import api from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 interface FileUploadZoneProps {
-  scope: 'avatars' | 'feed' | 'events' | 'materials' | 'proofs' | 'gallery' | 'projects';
+  scope: 'avatars' | 'profile' | 'feed' | 'events' | 'materials' | 'proofs' | 'gallery' | 'projects';
   accept?: string;
   allowPaste?: boolean;
   label?: string;

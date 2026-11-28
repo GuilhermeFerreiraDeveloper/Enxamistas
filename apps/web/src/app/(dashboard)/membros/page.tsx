@@ -16,6 +16,7 @@ import {
 import api from '@/lib/api';
 import { RoleLabels, UserRole } from '@enxamistas/shared';
 import { RoleBadge } from '@/components/ui/RoleBadge';
+import { resolveMediaUrl } from '@/lib/media';
 
 interface Member {
   id: string;
@@ -224,7 +225,7 @@ export default function MembrosPage() {
               <div className="flex items-start gap-5">
                 <div className="w-16 h-16 rounded-sm bg-obsidian border border-white/10 flex items-center justify-center overflow-hidden shrink-0 group-hover:border-royal-gold/40">
                   {member.avatar ? (
-                    <img src={member.avatar} alt={member.name} className="w-full h-full object-cover" />
+                    <img src={resolveMediaUrl(member.avatar)} alt={member.name} className="w-full h-full object-cover" />
                   ) : (
                     <User size={28} className="text-white/20 group-hover:text-royal-gold/60" />
                   )}
