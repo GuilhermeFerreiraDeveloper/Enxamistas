@@ -32,6 +32,8 @@ router.put(
   permissionMiddleware('academic.manage', UserRole.ABELHA_PRINCESA),
   controller.completeMemberCourse
 );
+router.post('/profiles/:profileId/medals', controller.grantMemberMedal);
+router.delete('/profiles/:profileId/medals/:userMedalId', controller.removeMemberMedal);
 
 router.get('/roles', controller.getRoles);
 router.post(

@@ -84,8 +84,14 @@ export const adminMemberUpdateSchema = updateProfileSchema.extend({
 });
 
 export const adminCourseCompletionSchema = z.object({
+  status: z.enum(['APPROVED', 'REJECTED']).default('APPROVED'),
   notes: z.string().trim().max(500).optional(),
   emitMedal: z.boolean().default(true),
+});
+
+export const adminMemberMedalSchema = z.object({
+  medalId: z.string().uuid(),
+  reason: z.string().trim().max(500).optional(),
 });
 
 // --- FEED ---

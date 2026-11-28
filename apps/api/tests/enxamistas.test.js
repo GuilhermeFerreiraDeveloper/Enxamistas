@@ -222,16 +222,19 @@ describe('Enxamistas Critical Suite', () => {
       findCourse: prisma.course.findUnique,
       enrollmentUpsert: prisma.courseEnrollment.upsert,
       completionUpsert: prisma.courseCompletion.upsert,
+      courseMedalUpsert: prisma.courseMedal.upsert,
       medalUpsert: prisma.userMedal.upsert,
     };
     let enrollmentArgs;
     let completionArgs;
+    let courseMedalArgs;
     let medalArgs;
     prisma.$transaction = async (callback) => callback(prisma);
     prisma.profile.findUnique = async () => ({ id: 'member-profile', name: 'Member', mainCourseId: null });
-    prisma.course.findUnique = async () => ({ id: 'course-1', name: 'Course', medal: { id: 'medal-1' } });
+    prisma.course.findUnique = async () => ({ id: 'course-1', name: 'Course', medal: null });
     prisma.courseEnrollment.upsert = async (args) => { enrollmentArgs = args; return args; };
     prisma.courseCompletion.upsert = async (args) => { completionArgs = args; return { id: 'completion-1', ...args.update }; };
+    prisma.courseMedal.upsert = async (args) => { courseMedalArgs = args; return { id: 'merit-medal' }; };
     prisma.userMedal.upsert = async (args) => { medalArgs = args; return args; };
 
     try {
@@ -241,14 +244,96 @@ describe('Enxamistas Critical Suite', () => {
       assert.equal(result.status, 'APPROVED');
       assert.equal(enrollmentArgs.create.status, 'COMPLETED');
       assert.equal(completionArgs.create.validatedById, 'staff-profile');
-      assert.equal(medalArgs.create.medalId, 'medal-1');
+      assert.match(courseMedalArgs.create.name, /Mérito em Course/);
+      assert.equal(medalArgs.create.medalId, 'merit-medal');
     } finally {
       prisma.$transaction = originals.transaction;
       prisma.profile.findUnique = originals.findProfile;
       prisma.course.findUnique = originals.findCourse;
       prisma.courseEnrollment.upsert = originals.enrollmentUpsert;
       prisma.courseCompletion.upsert = originals.completionUpsert;
+      prisma.courseMedal.upsert = originals.courseMedalUpsert;
       prisma.userMedal.upsert = originals.medalUpsert;
+    }
+  });
+
+  it('Admin can reject a member course, restore active enrollment, and remove its merit medal', async () => {
+    const originals = {
+      transaction: prisma.$transaction,
+      findProfile: prisma.profile.findUnique,
+      findCourse: prisma.course.findUnique,
+      enrollmentUpdateMany: prisma.courseEnrollment.updateMany,
+      completionUpsert: prisma.courseCompletion.upsert,
+      medalDeleteMany: prisma.userMedal.deleteMany,
+    };
+    let enrollmentArgs;
+    let completionArgs;
+    let medalArgs;
+    prisma.$transaction = async (callback) => callback(prisma);
+    prisma.profile.findUnique = async () => ({ id: 'member-profile', name: 'Member', mainCourseId: null });
+    prisma.course.findUnique = async () => ({ id: 'course-1', name: 'Course', medal: { id: 'course-medal' } });
+    prisma.courseEnrollment.updateMany = async (args) => { enrollmentArgs = args; return { count: 1 }; };
+    prisma.courseCompletion.upsert = async (args) => { completionArgs = args; return { id: 'completion-1', ...args.update }; };
+    prisma.userMedal.deleteMany = async (args) => { medalArgs = args; return { count: 1 }; };
+
+    try {
+      await assert.rejects(
+        () => adminService.completeMemberCourse('member-profile', 'course-1', { status: 'REJECTED' }, 'staff-user', 'staff-profile'),
+        /motivo da reprovação/
+      );
+      const result = await adminService.completeMemberCourse(
+        'member-profile', 'course-1', { status: 'REJECTED', notes: 'Presença insuficiente' }, 'staff-user', 'staff-profile'
+      );
+      assert.equal(result.status, 'REJECTED');
+      assert.equal(enrollmentArgs.data.status, 'ACTIVE');
+      assert.equal(completionArgs.update.status, 'REJECTED');
+      assert.equal(medalArgs.where.medalId, 'course-medal');
+    } finally {
+      prisma.$transaction = originals.transaction;
+      prisma.profile.findUnique = originals.findProfile;
+      prisma.course.findUnique = originals.findCourse;
+      prisma.courseEnrollment.updateMany = originals.enrollmentUpdateMany;
+      prisma.courseCompletion.upsert = originals.completionUpsert;
+      prisma.userMedal.deleteMany = originals.medalDeleteMany;
+    }
+  });
+
+  it('Admin can grant and remove medals from a member profile', async () => {
+    const originals = {
+      medalFindUnique: prisma.userMedal.findUnique,
+      medalCreate: prisma.userMedal.create,
+      medalFindFirst: prisma.userMedal.findFirst,
+      medalDelete: prisma.userMedal.delete,
+    };
+    let createArgs;
+    let deleteArgs;
+    prisma.userMedal.findUnique = async () => null;
+    prisma.userMedal.create = async (args) => {
+      createArgs = args;
+      return { id: 'user-medal-1', ...args.data, medal: { name: 'Mérito', description: 'Mérito' } };
+    };
+    prisma.userMedal.findFirst = async () => ({ id: 'user-medal-1', medalId: 'medal-1', medal: { name: 'Mérito' } });
+    prisma.userMedal.delete = async (args) => { deleteArgs = args; return args; };
+
+    try {
+      const granted = await adminService.grantMemberMedal(
+        'member-profile',
+        { medalId: '123e4567-e89b-12d3-a456-426614174000', reason: 'Grande contribuição' },
+        'staff-user',
+        'staff-profile'
+      );
+      assert.equal(granted.id, 'user-medal-1');
+      assert.equal(createArgs.data.profileId, 'member-profile');
+      assert.equal(createArgs.data.reason, 'Grande contribuição');
+
+      const removed = await adminService.removeMemberMedal('member-profile', 'user-medal-1', 'staff-user');
+      assert.equal(removed.removed, true);
+      assert.equal(deleteArgs.where.id, 'user-medal-1');
+    } finally {
+      prisma.userMedal.findUnique = originals.medalFindUnique;
+      prisma.userMedal.create = originals.medalCreate;
+      prisma.userMedal.findFirst = originals.medalFindFirst;
+      prisma.userMedal.delete = originals.medalDelete;
     }
   });
 

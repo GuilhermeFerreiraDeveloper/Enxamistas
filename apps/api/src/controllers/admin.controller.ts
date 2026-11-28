@@ -43,6 +43,31 @@ export class AdminController {
     }
   }
 
+  async grantMemberMedal(req: any, res: Response, next: NextFunction) {
+    try {
+      res.status(201).json(await adminService.grantMemberMedal(
+        req.params.profileId,
+        req.body,
+        req.user.id,
+        req.user.profile.id
+      ));
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async removeMemberMedal(req: any, res: Response, next: NextFunction) {
+    try {
+      res.status(200).json(await adminService.removeMemberMedal(
+        req.params.profileId,
+        req.params.userMedalId,
+        req.user.id
+      ));
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async changeRole(req: any, res: Response, next: NextFunction) {
     try {
       res.status(200).json(

@@ -4,14 +4,17 @@ import {
   UserRole,
   adminCourseCompletionSchema,
   adminMemberUpdateSchema,
+  adminMemberMedalSchema,
   roleChangeSchema,
   suspendUserSchema,
 } from '@enxamistas/shared';
 import { AppError } from '../errors/AppError';
 import { AuditService } from './audit.service';
 import { NotificationService } from './notification.service';
+import { MedalService } from './medal.service';
 
 const notificationService = new NotificationService();
+const medalService = new MedalService();
 
 export class AdminService {
   async getDashboardMetrics() {
@@ -117,6 +120,10 @@ export class AdminService {
             courseCompletions: {
               include: { course: { select: { id: true, name: true } } },
               orderBy: { completedAt: 'desc' },
+            },
+            medals: {
+              include: { medal: { include: { course: { select: { id: true, name: true } } } } },
+              orderBy: { createdAt: 'desc' },
             },
             _count: { select: { medals: true, courseCompletions: true, achievements: true } },
           },
@@ -306,7 +313,10 @@ export class AdminService {
     actorUserId: string,
     actorProfileId: string | undefined
   ) {
-    const { notes, emitMedal } = adminCourseCompletionSchema.parse(rawData);
+    const { status, notes, emitMedal } = adminCourseCompletionSchema.parse(rawData);
+    if (status === 'REJECTED' && (!notes || notes.trim().length < 3)) {
+      throw new AppError('Informe o motivo da reprovação (mínimo de 3 caracteres).', 400, 'REJECTION_REASON_REQUIRED');
+    }
     const [profile, course] = await Promise.all([
       prisma.profile.findUnique({ where: { id: targetProfileId }, select: { id: true, name: true, mainCourseId: true } }),
       prisma.course.findUnique({ where: { id: courseId }, include: { medal: true } }),
@@ -315,54 +325,115 @@ export class AdminService {
     if (!course) throw new AppError('Curso não encontrado.', 404, 'COURSE_NOT_FOUND');
 
     const completion = await prisma.$transaction(async (tx) => {
-      await tx.courseEnrollment.upsert({
+      if (status === 'APPROVED') {
+        await tx.courseEnrollment.upsert({
+          where: { courseId_profileId: { courseId, profileId: targetProfileId } },
+          update: { status: 'COMPLETED' },
+          create: {
+            courseId,
+            profileId: targetProfileId,
+            type: profile.mainCourseId === courseId ? 'MAIN' : 'SECONDARY',
+            status: 'COMPLETED',
+          },
+        });
+      } else {
+        await tx.courseEnrollment.updateMany({
+          where: { courseId, profileId: targetProfileId },
+          data: { status: 'ACTIVE' },
+        });
+      }
+
+      const reviewed = await tx.courseCompletion.upsert({
         where: { courseId_profileId: { courseId, profileId: targetProfileId } },
-        update: { status: 'COMPLETED' },
-        create: {
-          courseId,
-          profileId: targetProfileId,
-          type: profile.mainCourseId === courseId ? 'MAIN' : 'SECONDARY',
-          status: 'COMPLETED',
+        update: {
+          status,
+          notes: notes || `Conclusão registrada pela administração.`,
+          validatedById: actorProfileId || null,
+          completedAt: new Date(),
         },
-      });
-      const completed = await tx.courseCompletion.upsert({
-        where: { courseId_profileId: { courseId, profileId: targetProfileId } },
-        update: { status: 'APPROVED', notes: notes || 'Conclusão registrada pela administração.', validatedById: actorProfileId || null, completedAt: new Date() },
         create: {
           courseId,
           profileId: targetProfileId,
-          status: 'APPROVED',
+          status,
           notes: notes || 'Conclusão registrada pela administração.',
           validatedById: actorProfileId || null,
         },
       });
-      if (emitMedal && course.medal) {
-        await tx.userMedal.upsert({
-          where: { medalId_profileId: { medalId: course.medal.id, profileId: targetProfileId } },
+
+      if (status === 'APPROVED' && emitMedal) {
+        const meritMedal = course.medal || await tx.courseMedal.upsert({
+          where: { courseId },
           update: {},
           create: {
-            medalId: course.medal.id,
-            profileId: targetProfileId,
-            emittedById: actorProfileId || null,
-            reason: notes || `Conclusão oficial do curso ${course.name}`,
+            courseId,
+            name: `Mérito em ${course.name}`,
+            description: `Reconhecimento pela conclusão aprovada do curso ${course.name}.`,
+            icon: 'award',
+            criteria: `Conclusão aprovada de ${course.name}`,
           },
         });
+        await tx.userMedal.upsert({
+          where: { medalId_profileId: { medalId: meritMedal.id, profileId: targetProfileId } },
+          update: {},
+          create: {
+            medalId: meritMedal.id,
+            profileId: targetProfileId,
+            emittedById: actorProfileId || null,
+            reason: notes || `Mérito pela conclusão do curso ${course.name}`,
+          },
+        });
+      } else if (status === 'REJECTED' && course.medal) {
+        await tx.userMedal.deleteMany({
+          where: { medalId: course.medal.id, profileId: targetProfileId },
+        });
       }
-      return completed;
+      return reviewed;
     });
 
-    await AuditService.log(actorUserId, 'ADMIN_COMPLETE_MEMBER_COURSE', 'CourseCompletion', {
+    await AuditService.log(actorUserId, 'ADMIN_REVIEW_MEMBER_COURSE', 'CourseCompletion', {
       courseId,
       targetProfileId,
-      emitMedal,
+      status,
+      emitMedal: status === 'APPROVED' && emitMedal,
+      notes,
     });
     await notificationService.createNotification(targetProfileId, {
-      title: `Conclusão oficial: ${course.name}`,
-      content: `A administração registrou sua conclusão em ${course.name}.`,
+      title: status === 'APPROVED' ? `Conclusão aprovada: ${course.name}` : `Conclusão reprovada: ${course.name}`,
+      content: status === 'APPROVED'
+        ? `A administração aprovou sua conclusão em ${course.name} e registrou sua medalha de mérito.`
+        : `A administração reprovou sua conclusão em ${course.name}. Motivo: ${notes}`,
       link: '/medalhas',
       type: 'ACADEMIC',
     });
     return completion;
+  }
+
+  async grantMemberMedal(targetProfileId: string, rawData: any, actorUserId: string, actorProfileId: string) {
+    const { medalId, reason } = adminMemberMedalSchema.parse(rawData);
+    return medalService.emitMedal(targetProfileId, medalId, actorProfileId, reason, actorUserId);
+  }
+
+  async removeMemberMedal(targetProfileId: string, userMedalId: string, actorUserId: string) {
+    const assignedMedal = await prisma.userMedal.findFirst({
+      where: { id: userMedalId, profileId: targetProfileId },
+      include: { medal: { select: { name: true } } },
+    });
+    if (!assignedMedal) throw new AppError('Medalha não encontrada para este membro.', 404, 'MEMBER_MEDAL_NOT_FOUND');
+
+    await prisma.userMedal.delete({ where: { id: userMedalId } });
+    await AuditService.log(actorUserId, 'ADMIN_REMOVE_MEMBER_MEDAL', 'UserMedal', {
+      targetProfileId,
+      userMedalId,
+      medalId: assignedMedal.medalId,
+      name: assignedMedal.medal.name,
+    });
+    await notificationService.createNotification(targetProfileId, {
+      title: 'Medalha removida',
+      content: `A administração removeu a medalha "${assignedMedal.medal.name}" do seu perfil.`,
+      link: '/medalhas',
+      type: 'ADMIN',
+    });
+    return { id: userMedalId, removed: true };
   }
 
   // --- EXTENSIBLE RBAC ---

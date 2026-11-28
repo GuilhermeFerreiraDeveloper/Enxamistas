@@ -14,6 +14,7 @@ import {
   Radio,
   Trash2,
   UploadCloud,
+  Award,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -32,7 +33,10 @@ export default function AdminPage() {
   const [metrics, setMetrics] = useState<any>(null);
   const [members, setMembers] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
+  const [medalCatalog, setMedalCatalog] = useState<any[]>([]);
   const [editingMember, setEditingMember] = useState<any | null>(null);
+  const [selectedMedalId, setSelectedMedalId] = useState('');
+  const [medalReason, setMedalReason] = useState('');
   const [memberForm, setMemberForm] = useState<Record<string, string>>({});
   const [completionCourseId, setCompletionCourseId] = useState('');
   const [completionNotes, setCompletionNotes] = useState('');
@@ -62,12 +66,14 @@ export default function AdminPage() {
         const res = await api.get('/admin/metrics');
         setMetrics(res.data);
       } else if (activeTab === 'MEMBERS') {
-        const [membersRes, coursesRes] = await Promise.all([
+        const [membersRes, coursesRes, medalsRes] = await Promise.all([
           api.get('/admin/members', { params: memberQuery ? { q: memberQuery } : {} }),
           api.get('/courses'),
+          api.get('/medals/catalog'),
         ]);
         setMembers(Array.isArray(membersRes.data) ? membersRes.data : []);
         setCourses(Array.isArray(coursesRes.data) ? coursesRes.data : []);
+        setMedalCatalog(Array.isArray(medalsRes.data?.medals) ? medalsRes.data.medals : []);
       } else if (activeTab === 'RBAC') {
         const res = await api.get('/admin/roles');
         setRbac(res.data || { roles: [], permissions: [] });
@@ -197,20 +203,56 @@ export default function AdminPage() {
     }
   };
 
-  const handleCompleteMemberCourse = async () => {
+  const handleReviewMemberCourse = async (status: 'APPROVED' | 'REJECTED') => {
     if (!editingMember?.profile?.id || !completionCourseId) return;
+    if (status === 'REJECTED' && completionNotes.trim().length < 3) {
+      showToast('Informe o motivo da reprovação (mínimo de 3 caracteres).', 'error');
+      return;
+    }
     try {
       await api.put(`/admin/profiles/${editingMember.profile.id}/courses/${completionCourseId}/complete`, {
+        status,
         notes: completionNotes || undefined,
-        emitMedal: true,
+        emitMedal: status === 'APPROVED',
       });
       await loadTab('MEMBERS');
       setEditingMember(null);
       setCompletionCourseId('');
       setCompletionNotes('');
-      showToast('Curso concluído e auditado; medalha emitida quando disponível.', 'success');
+      showToast(status === 'APPROVED'
+        ? 'Curso aprovado e medalha de mérito concedida.'
+        : 'Curso reprovado; matrícula e membro atualizados.', 'success');
     } catch (err: any) {
-      showToast(err.response?.data?.error || 'Erro ao concluir curso para o membro.', 'error');
+      showToast(err.response?.data?.error || 'Erro ao revisar curso do membro.', 'error');
+    }
+  };
+
+  const handleGrantMemberMedal = async () => {
+    if (!editingMember?.profile?.id || !selectedMedalId) return;
+    try {
+      await api.post(`/admin/profiles/${editingMember.profile.id}/medals`, {
+        medalId: selectedMedalId,
+        reason: medalReason.trim() || undefined,
+      });
+      await loadTab('MEMBERS');
+      setEditingMember(null);
+      setSelectedMedalId('');
+      setMedalReason('');
+      showToast('Medalha concedida e visível no perfil do membro.', 'success');
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Erro ao conceder medalha.', 'error');
+    }
+  };
+
+  const handleRemoveMemberMedal = async (member: any, medal: any) => {
+    if (!window.confirm(`Remover a medalha "${medal.medal.name}" deste membro?`)) return;
+    try {
+      await api.delete(`/admin/profiles/${member.profile.id}/medals/${medal.id}`);
+      await loadTab('MEMBERS');
+      setEditingMember(null);
+      showToast('Medalha removida do perfil do membro.', 'success');
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Erro ao remover medalha.', 'error');
     }
   };
 
@@ -525,11 +567,12 @@ export default function AdminPage() {
                 <p className="text-xs text-white/50">Curso principal atual: {editingMember.profile?.mainCourse?.name || 'não definido'}</p>
                 <div className="flex flex-wrap gap-3">
                   <select value={completionCourseId} onChange={(event) => setCompletionCourseId(event.target.value)} className="min-w-60 flex-1 rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm text-white">
-                    <option value="">Selecione um curso para concluir</option>
+                    <option value="">Selecione um curso para revisar</option>
                     {courses.map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
                   </select>
-                  <input value={completionNotes} onChange={(event) => setCompletionNotes(event.target.value)} placeholder="Observação da administração (opcional)" className="min-w-60 flex-1 rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm text-white" />
-                  <Button type="button" disabled={!completionCourseId} onClick={handleCompleteMemberCourse}>Concluir curso</Button>
+                  <input value={completionNotes} onChange={(event) => setCompletionNotes(event.target.value)} placeholder="Observação ou motivo da reprovação" className="min-w-60 flex-1 rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm text-white" />
+                  <Button type="button" disabled={!completionCourseId} onClick={() => handleReviewMemberCourse('APPROVED')}>Aprovar e concluir</Button>
+                  <Button type="button" variant="secondary" disabled={!completionCourseId || completionNotes.trim().length < 3} onClick={() => handleReviewMemberCourse('REJECTED')}>Reprovar curso</Button>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {(editingMember.profile?.courseCompletions || []).map((completion: any) => (
@@ -545,6 +588,30 @@ export default function AdminPage() {
                     ))}
                     {!(editingMember.profile?.enrollments || []).length && <span className="text-xs text-white/40">Nenhuma matrícula registrada.</span>}
                   </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 border-t border-white/10 pt-5">
+                <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white"><Award size={15} className="text-royal-gold" /> Medalhas do membro</h3>
+                <div className="flex flex-wrap gap-3">
+                  <select value={selectedMedalId} onChange={(event) => setSelectedMedalId(event.target.value)} className="min-w-60 flex-1 rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm text-white">
+                    <option value="">Selecione uma medalha para conceder</option>
+                    {medalCatalog.map((medal) => <option key={medal.id} value={medal.id}>{medal.name}{medal.course?.name ? ` · ${medal.course.name}` : ''}</option>)}
+                  </select>
+                  <input value={medalReason} onChange={(event) => setMedalReason(event.target.value)} placeholder="Motivo da concessão (opcional)" className="min-w-60 flex-1 rounded-sm border border-white/10 bg-obsidian px-3 py-2 text-sm text-white" />
+                  <Button type="button" disabled={!selectedMedalId} onClick={handleGrantMemberMedal}>Conceder medalha</Button>
+                </div>
+                <div className="space-y-2">
+                  {(editingMember.profile?.medals || []).map((memberMedal: any) => (
+                    <div key={memberMedal.id} className="flex flex-wrap items-center justify-between gap-3 border border-royal-gold/15 bg-obsidian/50 px-3 py-2">
+                      <div>
+                        <p className="text-sm font-bold text-white">{memberMedal.medal.name}</p>
+                        <p className="text-[10px] text-white/45">{memberMedal.medal.course?.name || 'Mérito institucional'}{memberMedal.reason ? ` · ${memberMedal.reason}` : ''}</p>
+                      </div>
+                      <Button type="button" size="sm" variant="secondary" onClick={() => handleRemoveMemberMedal(editingMember, memberMedal)}>Remover</Button>
+                    </div>
+                  ))}
+                  {!(editingMember.profile?.medals || []).length && <p className="text-xs text-white/40">Este membro ainda não recebeu medalhas.</p>}
                 </div>
               </div>
             </section>
